@@ -3,14 +3,20 @@
 #include "CandidatePanel.h"
 #include "DrawingCanvas.h"
 
+#include <QAbstractSpinBox>
 #include <QApplication>
 #include <QClipboard>
 #include <QComboBox>
+#include <QEvent>
+#include <QFileInfo>
 #include <QFutureWatcher>
 #include <QHBoxLayout>
+#include <QKeyEvent>
 #include <QLabel>
+#include <QLineEdit>
 #include <QPushButton>
 #include <QStatusBar>
+#include <QTextEdit>
 #include <QtConcurrent>
 #include <QVBoxLayout>
 #include <QWidget>
@@ -69,6 +75,7 @@ MainWindow::MainWindow(ZinniaBackend* backend, QWidget* parent)
   root->addWidget(candidates_, 2);
 
   connect(canvas_, &DrawingCanvas::strokesChanged, this, &MainWindow::onStrokesChanged);
+  connect(canvas_, &DrawingCanvas::holdToWriteChanged, this, &MainWindow::onHoldToWriteChanged);
   connect(modeCombo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
           &MainWindow::onStrokesChanged);
   connect(clearBtn, &QPushButton::clicked, this, &MainWindow::clearAll);
@@ -78,15 +85,63 @@ MainWindow::MainWindow(ZinniaBackend* backend, QWidget* parent)
     copyButton_->setEnabled(!ch.isEmpty());
   });
 
+  qApp->installEventFilter(this);
+  canvas_->setFocus(Qt::OtherFocusReason);
+
   updateDiagnostics({});
   statusBar()->showMessage(
-      tr("JA: %1 | TW: %2")
-          .arg(backend_->japaneseModelPath())
-          .arg(backend_->traditionalModelPath()));
+      tr("Click-drag or hold Space to write · JA: %1 · TW: %2")
+          .arg(QFileInfo(backend_->japaneseModelPath()).fileName())
+          .arg(QFileInfo(backend_->traditionalModelPath()).fileName()));
 }
 
 RecognitionMode MainWindow::currentMode() const {
   return static_cast<RecognitionMode>(modeCombo_->currentData().toInt());
+}
+
+bool MainWindow::shouldStealSpaceFromFocus() const {
+  QWidget* focus = QApplication::focusWidget();
+  if (!focus) {
+    return true;
+  }
+  // Let real text fields / combos keep Space.
+  if (qobject_cast<QLineEdit*>(focus) || qobject_cast<QTextEdit*>(focus) ||
+      qobject_cast<QComboBox*>(focus) || qobject_cast<QAbstractSpinBox*>(focus)) {
+    return false;
+  }
+  return true;
+}
+
+bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
+  if (event->type() == QEvent::KeyPress || event->type() == QEvent::KeyRelease) {
+    auto* keyEvent = static_cast<QKeyEvent*>(event);
+    if (keyEvent->key() == Qt::Key_Space && !keyEvent->isAutoRepeat() &&
+        shouldStealSpaceFromFocus()) {
+      if (event->type() == QEvent::KeyPress) {
+        canvas_->beginHoldToWrite();
+      } else {
+        canvas_->endHoldToWrite();
+      }
+      return true;
+    }
+  }
+  return QMainWindow::eventFilter(watched, event);
+}
+
+void MainWindow::onHoldToWriteChanged(bool active) {
+  if (active) {
+    statusBar()->showMessage(tr("Hold-to-write active — move on the canvas; release Space when done"));
+  } else {
+    statusBar()->showMessage(tr("Click-drag or hold Space to write"));
+  }
+  // Refresh the Input: label without wiping recognition stats.
+  const QString writeState = active ? tr("hold-to-write") : tr("click-drag");
+  QString text = diagnostics_->text();
+  const QString marker = QStringLiteral(" · Mode:");
+  const int modeAt = text.indexOf(marker);
+  if (text.startsWith(QStringLiteral("Input:")) && modeAt > 0) {
+    diagnostics_->setText(tr("Input: %1").arg(writeState) + text.mid(modeAt));
+  }
 }
 
 void MainWindow::clearAll() {
@@ -109,9 +164,12 @@ void MainWindow::copySelected() {
 
 void MainWindow::updateDiagnostics(const RecognitionResult& result) {
   const QString modeName = modeCombo_->currentText();
+  const QString writeState =
+      canvas_->holdToWriteActive() ? tr("hold-to-write") : tr("click-drag");
   // Keep this short so diagnostics do not steal vertical space from the canvas.
   diagnostics_->setText(
-      tr("Mode: %1 · Strokes: %2 · Latency: %3 ms%4")
+      tr("Input: %1 · Mode: %2 · Strokes: %3 · Latency: %4 ms%5")
+          .arg(writeState)
           .arg(modeName)
           .arg(result.strokeCount)
           .arg(result.latencyMs)

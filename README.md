@@ -53,9 +53,14 @@ Targets:
 ./build/handwriting_app /path/to/models
 ```
 
+## Drawing input
+
+- **Click-drag** (mouse or trackpad click): press, draw a stroke, release. Repeat for each stroke.
+- **Hold-to-write** (trackpad-friendly): hold **Space**, then write with your finger on the trackpad. On macOS this uses **MultitouchSupport** absolute finger positions (trackpad corners = canvas corners; lift between strokes). If that path is unavailable, cursor movement is used as a fallback. Release Space when finished. Click-drag still works for mouse users.
+
 ## What this tests
 
-- Mouse/trackpad stroke capture
+- Mouse/trackpad stroke capture (click-drag and hold-to-write)
 - Japanese and Traditional Chinese Zinnia models
 - Dual-model “Both” mode with provenance (no cross-model score calibration)
 - Latency and candidate ranking for a later go/no-go decision

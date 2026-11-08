@@ -25,7 +25,6 @@ add_library(zinnia STATIC
 set_target_properties(zinnia PROPERTIES AUTOMOC OFF AUTOUIC OFF AUTORCC OFF)
 target_include_directories(zinnia PUBLIC ${ZINNIA_DIR})
 target_compile_definitions(zinnia PUBLIC HAVE_CONFIG_H)
-# Silence noisy legacy C++ warnings in vendored code.
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
   target_compile_options(zinnia PRIVATE -Wno-deprecated-declarations)
 endif()
@@ -47,19 +46,37 @@ add_executable(handwriting_smoke
 target_link_libraries(handwriting_smoke PRIVATE handwriting_backend)
 
 # --- GUI application ---------------------------------------------------------
-add_executable(handwriting_app
+set(HANDWRITING_APP_SOURCES
   src/main.cpp
   src/MainWindow.cpp
   src/DrawingCanvas.cpp
   src/CandidatePanel.cpp
 )
+
+if(APPLE)
+  enable_language(OBJCXX)
+  list(APPEND HANDWRITING_APP_SOURCES src/macos/TrackpadStrokeCapture.mm)
+else()
+  list(APPEND HANDWRITING_APP_SOURCES src/macos/TrackpadStrokeCaptureStub.cpp)
+endif()
+
+add_executable(handwriting_app ${HANDWRITING_APP_SOURCES})
+target_include_directories(handwriting_app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(handwriting_app PRIVATE
   handwriting_backend
   Qt6::Widgets
   Qt6::Concurrent
 )
+if(APPLE)
+  target_link_libraries(handwriting_app PRIVATE
+    "-framework AppKit"
+    "-framework CoreFoundation"
+  )
+  set_source_files_properties(src/macos/TrackpadStrokeCapture.mm PROPERTIES
+    COMPILE_FLAGS "-fobjc-arc"
+  )
+endif()
 
-# Default model directory next to the source tree (override at runtime if needed).
 target_compile_definitions(handwriting_smoke PRIVATE
   HANDWRITING_DEFAULT_MODEL_DIR="${CMAKE_CURRENT_SOURCE_DIR}/models"
 )
