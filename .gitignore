@@ -1,0 +1,16 @@
+# Build
+/build/
+/cmake-build-*/
+/.tools/
+
+# Recognition models (download via scripts/fetch_models.sh)
+/models/*.model
+/models/*.meta
+/models_dl/
+
+# Editor / OS
+.DS_Store
+*.user
+*.autosave
+.idea/
+.vscode/

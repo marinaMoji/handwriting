@@ -1,0 +1,39 @@
+{
+  "description": "Initial smoke corpus for handwriting evaluation. Expand if results look promising.",
+  "notes": [
+    "Record exact rank separately from related-variant hits (e.g. 国 vs 國).",
+    "Zinnia uses stroke trajectories; test careful and hurried writing, and unusual stroke order."
+  ],
+  "characters": [
+    {"char": "日", "category": "simple", "notes": "basic recognition"},
+    {"char": "月", "category": "simple"},
+    {"char": "山", "category": "simple"},
+    {"char": "川", "category": "simple"},
+    {"char": "木", "category": "simple"},
+    {"char": "学", "category": "common_japanese"},
+    {"char": "校", "category": "common_japanese"},
+    {"char": "語", "category": "common_japanese"},
+    {"char": "読", "category": "common_japanese"},
+    {"char": "書", "category": "common_japanese"},
+    {"char": "學", "category": "traditional_form", "related": "学"},
+    {"char": "國", "category": "traditional_form", "related": "国"},
+    {"char": "體", "category": "traditional_form", "related": "体"},
+    {"char": "龍", "category": "traditional_form", "related": "竜"},
+    {"char": "廣", "category": "traditional_form", "related": "広"},
+    {"char": "国", "category": "variant_pair", "pair": "國"},
+    {"char": "舊", "category": "variant_pair", "pair": "旧"},
+    {"char": "旧", "category": "variant_pair", "pair": "舊"},
+    {"char": "体", "category": "variant_pair", "pair": "體"},
+    {"char": "未", "category": "similar_shape", "confusable": "末"},
+    {"char": "末", "category": "similar_shape", "confusable": "未"},
+    {"char": "土", "category": "similar_shape", "confusable": "士"},
+    {"char": "士", "category": "similar_shape", "confusable": "土"},
+    {"char": "日", "category": "similar_shape", "confusable": "曰"},
+    {"char": "曰", "category": "similar_shape", "confusable": "日"},
+    {"char": "鬱", "category": "complex"},
+    {"char": "龜", "category": "complex"},
+    {"char": "麟", "category": "complex"},
+    {"char": "𠮷", "category": "historical_rare", "notes": "coverage limit"},
+    {"char": "𠀋", "category": "historical_rare", "notes": "coverage limit"}
+  ]
+}
