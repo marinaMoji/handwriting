@@ -61,9 +61,9 @@ class TrackpadSource : public QObject {
   // Euclidean distance in normalized pad space (0..1). Same contact id with a
   // larger jump usually means the backend missed the lift (common on macOS
   // NSTouch / some evdev paths) and the finger came back elsewhere — start a
-  // new stroke. Keep this well above a single writing-frame step (~0.15) so
-  // fast strokes are not split, but below a typical lift-and-reposition.
-  static constexpr qreal kLiftJumpNormalized = 0.28;
+  // new stroke. Keep this well above a fast writing step with a dropped frame
+  // (~0.2) so strokes are not chopped, but below a typical lift-and-reposition.
+  static constexpr qreal kLiftJumpNormalized = 0.38;
 
   qreal reportedAspect_ = 0.0;
   bool problemSinceStart_ = false;

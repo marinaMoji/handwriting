@@ -41,8 +41,13 @@ class MtSlotTracker {
     bool hasPressure = false;
     int pressureMin = 0, pressureMax = 1;
     qreal minPressureFraction = 0.05;  // contacts below this are ignored (if hasPressure)
-    // Many pads advertise ranges larger than the glass. When true, learn the span that
-    // fingers actually reach and normalize to it (after >= 1/5 of the range is covered).
+    // Many pads advertise ranges larger than the usable glass. Inset each axis by this
+    // fraction of the span so the physical edges of the glass map near the canvas edges
+    // (0 = use the raw abs min/max). Override with HANDWRITING_PAD_EDGE.
+    qreal edgeInset = 0.04;
+    // Optional: after a lift, shrink the mapping to the finger span actually seen.
+    // Off by default — committing after a small character makes the rest of the pad
+    // clamp to the canvas border ("not capturing the full trackpad").
     bool learnRange = false;
   };
 
@@ -64,6 +69,11 @@ class MtSlotTracker {
   QVector<TrackpadContact> contacts();
   int slotCount() const { return slots_.size(); }
 
+  // Promote the observed finger span into the range used for normalization.
+  // Call on finger-up (empty frame). Applying a new learned range mid-stroke
+  // remaps coordinates and looks like a teleport, which splits the stroke.
+  void commitLearnedRange();
+
  private:
   struct Slot {
     int trackingId = -1;
@@ -82,4 +92,6 @@ class MtSlotTracker {
   bool dropping_ = false;
   bool hasObserved_ = false;
   int obsXMin_ = 0, obsXMax_ = 0, obsYMin_ = 0, obsYMax_ = 0;
+  bool hasCommitted_ = false;
+  int comXMin_ = 0, comXMax_ = 0, comYMin_ = 0, comYMax_ = 0;
 };

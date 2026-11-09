@@ -167,13 +167,22 @@ bool MainWindow::shouldHandleHoldKeyFromFocus() const {
 }
 
 bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
-  Q_UNUSED(watched);
-  // While hold-to-write is active, pad presses/taps must not click anything.
+  // While hold-to-write is active, pad presses/taps must not click buttons.
+  // A click on the canvas itself means the user wants click-drag: end hold and
+  // let the press through (also recovers if a hold-key release was lost).
   if (canvas_->holdToWriteActive()) {
     switch (event->type()) {
       case QEvent::MouseButtonPress:
+      case QEvent::MouseButtonDblClick: {
+        for (QObject* o = watched; o != nullptr; o = o->parent()) {
+          if (o == canvas_) {
+            canvas_->endHoldToWrite();
+            return false;
+          }
+        }
+        return true;
+      }
       case QEvent::MouseButtonRelease:
-      case QEvent::MouseButtonDblClick:
       case QEvent::ContextMenu:
         return true;
       default:
@@ -281,14 +290,24 @@ void MainWindow::copySelected() {
 void MainWindow::updateDiagnostics(const RecognitionResult& result) {
   lastResult_ = result;
   const QString modeName = modeCombo_->currentText();
-  const QString writeState =
-      canvas_->holdToWriteActive() ? tr("hold-to-write") : tr("click-drag");
+  QString writeState = canvas_->holdToWriteActive() ? tr("hold-to-write") : tr("click-drag");
+  if (canvas_->holdToWriteActive()) {
+    if (canvas_->absoluteFingerDown()) {
+      writeState += tr(" · absolute finger");
+    } else if (canvas_->absoluteCaptureActive()) {
+      writeState += tr(" · absolute listening");
+    } else {
+      writeState += tr(" · cursor fallback");
+    }
+  }
   diagnostics_->setText(
-      tr("Input: %1 · Mode: %2 · Strokes: %3 · Latency: %4 ms%5")
+      tr("Input: %1 · Backend: %2 · Mode: %3 · Strokes: %4 · Latency: %5 ms · Pad aspect: %6%7")
           .arg(writeState)
+          .arg(canvas_->captureBackendName())
           .arg(modeName)
           .arg(result.strokeCount)
           .arg(result.latencyMs)
+          .arg(canvas_->padAspect(), 0, 'f', 2)
           .arg(result.error.isEmpty()
                    ? QString()
                    : QStringLiteral(" · Error: %1").arg(result.error)));

@@ -65,13 +65,27 @@ DrawingCanvas::DrawingCanvas(QWidget* parent) : QWidget(parent) {
 }
 
 bool DrawingCanvas::absoluteTrackpadDriving() const {
-  return trackpadCapture_ && trackpadCapture_->isActive() &&
-         trackpadCapture_->hasReceivedContact();
+  return trackpadFingerVisible_;
+}
+
+QString DrawingCanvas::captureBackendName() const {
+  if (trackpadCapture_ == nullptr) {
+    return QStringLiteral("none");
+  }
+  if (!trackpadCapture_->isAvailable()) {
+    return trackpadCapture_->name() + QStringLiteral(" (unavailable)");
+  }
+  return trackpadCapture_->name();
+}
+
+bool DrawingCanvas::absoluteCaptureActive() const {
+  return trackpadCapture_ && trackpadCapture_->isActive();
 }
 
 void DrawingCanvas::clearStrokes() {
   usedHold_ = false;
   usedClick_ = false;
+  touchClickDrag_ = false;
   holdStrokeIdleTimer_->stop();
   strokes_.clear();
   currentStroke_.clear();
@@ -103,14 +117,19 @@ void DrawingCanvas::beginHoldToWrite() {
   holdToWrite_ = true;
   trackpadFingerVisible_ = false;
   holdBeganAt_.start();
-  // Keep the pointer over the canvas so a stray press cannot land on another window.
-  if (!rect().contains(mapFromGlobal(QCursor::pos()))) {
-    QCursor::setPos(mapToGlobal(rect().center()));
-  }
   updateTracking();
   setFocus(Qt::ShortcutFocusReason);
   if (trackpadCapture_ && trackpadCapture_->isAvailable()) {
     trackpadCapture_->setActive(true);
+  }
+  // Cursor fallback only when no absolute backend is live. Wayland often ignores
+  // QCursor::setPos, so grab mouse events to this widget; mapping still follows the
+  // pointer (not the physical pad) — absolute evdev is the real fix.
+  if (!absoluteCaptureActive()) {
+    if (!rect().contains(mapFromGlobal(QCursor::pos()))) {
+      QCursor::setPos(mapToGlobal(rect().center()));
+    }
+    grabMouse();
   }
   update();
   emit holdToWriteChanged(true);
@@ -165,17 +184,94 @@ void DrawingCanvas::onTrackpadFirstContact() {
   }
 }
 
+bool DrawingCanvas::handleTouchAsClickDrag(QTouchEvent* event) {
+  if (holdToWrite_ || event == nullptr) {
+    return false;
+  }
+
+  // Prefer a pressed/updated point; on TouchEnd the point may already be Released.
+  const QEventPoint* point = nullptr;
+  for (const QEventPoint& p : event->points()) {
+    if (p.state() != QEventPoint::State::Released) {
+      point = &p;
+      break;
+    }
+  }
+  if (point == nullptr && !event->points().isEmpty()) {
+    point = &event->points().first();
+  }
+
+  switch (event->type()) {
+    case QEvent::TouchBegin: {
+      if (point == nullptr) {
+        return false;
+      }
+      if (drawSource_ == DrawSource::HoldToWrite) {
+        finishStroke();
+      }
+      startStroke(toLogical(point->position()), DrawSource::ClickDrag);
+      touchClickDrag_ = true;
+      return true;
+    }
+    case QEvent::TouchUpdate: {
+      if (!touchClickDrag_ || point == nullptr) {
+        return touchClickDrag_;
+      }
+      if (drawSource_ != DrawSource::ClickDrag) {
+        startStroke(toLogical(point->position()), DrawSource::ClickDrag);
+      } else {
+        appendPoint(toLogical(point->position()));
+      }
+      return true;
+    }
+    case QEvent::TouchEnd: {
+      if (!touchClickDrag_) {
+        return false;
+      }
+      if (point != nullptr) {
+        appendPoint(toLogical(point->position()));
+      }
+      if (drawSource_ == DrawSource::ClickDrag) {
+        finishStroke();
+      }
+      touchClickDrag_ = false;
+      return true;
+    }
+    case QEvent::TouchCancel: {
+      if (!touchClickDrag_) {
+        return false;
+      }
+      cancelStroke();
+      touchClickDrag_ = false;
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+
 bool DrawingCanvas::event(QEvent* e) {
   switch (e->type()) {
     case QEvent::TouchBegin:
     case QEvent::TouchUpdate:
     case QEvent::TouchEnd:
-    case QEvent::TouchCancel:
-      if (qtTouch_ != nullptr && qtTouch_->handleTouchEvent(static_cast<QTouchEvent*>(e))) {
+    case QEvent::TouchCancel: {
+      auto* touch = static_cast<QTouchEvent*>(e);
+      // Absolute hold-to-write via the Qt touchpad backend.
+      if (qtTouch_ != nullptr && qtTouch_->handleTouchEvent(touch)) {
         e->accept();
         return true;
       }
-      break;
+      // Click-drag: handle touch directly. On Wayland, trackpad presses often arrive
+      // only as touch; leaving TouchBegin accepted (Qt's default) also suppresses
+      // synthesized mouse events, so "nothing draws" unless we ink from touch here.
+      if (handleTouchAsClickDrag(touch)) {
+        e->accept();
+        return true;
+      }
+      e->ignore();
+      return true;
+    }
     default:
       break;
   }
@@ -194,6 +290,9 @@ void DrawingCanvas::endHoldToWrite() {
   holdStrokeIdleTimer_->stop();
   if (trackpadCapture_) {
     trackpadCapture_->setActive(false);
+  }
+  if (mouseGrabber() == this) {
+    releaseMouse();
   }
   setCursorFrozen(false);
   updateTracking();
@@ -282,6 +381,7 @@ void DrawingCanvas::appendHoldToWritePoint(const StrokePoint& point) {
 void DrawingCanvas::finishStroke() {
   holdStrokeIdleTimer_->stop();
   if (drawSource_ == DrawSource::None) {
+    touchClickDrag_ = false;
     return;
   }
   // A lone point from cursor fallback is noise (e.g. the pointer being moved), not a stroke.
@@ -291,6 +391,7 @@ void DrawingCanvas::finishStroke() {
   }
   currentStroke_.clear();
   cursorStroke_ = false;
+  touchClickDrag_ = false;
   drawSource_ = DrawSource::None;
   updateTracking();
   update();
@@ -303,6 +404,7 @@ void DrawingCanvas::cancelStroke() {
   holdStrokeIdleTimer_->stop();
   currentStroke_.clear();
   cursorStroke_ = false;
+  touchClickDrag_ = false;
   drawSource_ = DrawSource::None;
   updateTracking();
   update();
@@ -340,10 +442,11 @@ void DrawingCanvas::onTrackpadStrokeMoved(QPointF normalized) {
   }
   if (drawSource_ != DrawSource::HoldToWrite) {
     startStroke(point, DrawSource::HoldToWrite);
-  } else if (!currentStroke_.isEmpty() &&
+  } else if (!absoluteCaptureActive() && !currentStroke_.isEmpty() &&
              stroke_mapping::isHoldJump(currentStroke_.last(), point, kHoldJumpThreshold)) {
-    // Belt-and-suspenders with TrackpadSource jump splitting: if a lift was
-    // missed and we only see a teleporting move, still break the line.
+    // Cursor-fallback only: a large pointer teleport usually means lift+reposition.
+    // With absolute capture, TrackpadSource already splits on lift/jump; applying a
+    // tight surface threshold here was chopping fast strokes when a frame was skipped.
     finishStroke();
     startStroke(point, DrawSource::HoldToWrite);
   } else {
@@ -423,11 +526,13 @@ void DrawingCanvas::paintEvent(QPaintEvent*) {
   QString hintText;
   if (holdToWrite_) {
     if (absoluteTrackpadDriving()) {
-      hintText = tr("Whole trackpad = this area · write anywhere, it is cropped automatically · lift between strokes · release the ` key");
-    } else if (trackpadCapture_ && trackpadCapture_->isAvailable()) {
-      hintText = tr("Hold ` (key left of 1): touch the trackpad (absolute) · or move cursor as fallback");
+      hintText = tr("Whole trackpad = this area · write anywhere · lift between strokes · release `");
+    } else if (absoluteCaptureActive()) {
+      hintText = tr("Absolute capture (%1) listening — touch the trackpad (pointer position is ignored)")
+                     .arg(captureBackendName());
     } else {
-      hintText = tr("Hold-to-write (cursor fallback): pause between strokes · release the ` key");
+      hintText = tr("Cursor fallback only (%1) — join the `input` group for real trackpad mapping")
+                     .arg(captureBackendName());
     }
   } else {
     hintText = tr("Click-drag to draw · or hold ` (key left of 1) and write on the trackpad");
@@ -438,6 +543,10 @@ void DrawingCanvas::paintEvent(QPaintEvent*) {
 
 void DrawingCanvas::mousePressEvent(QMouseEvent* event) {
   if (event->button() != Qt::LeftButton) {
+    return;
+  }
+  // Touch sequence already owns this stroke; a synthesized mouse press would duplicate it.
+  if (touchClickDrag_) {
     return;
   }
   setFocus(Qt::MouseFocusReason);
@@ -452,6 +561,9 @@ void DrawingCanvas::mouseMoveEvent(QMouseEvent* event) {
   const StrokePoint point = toLogical(event->position());
 
   if (leftDown) {
+    if (touchClickDrag_) {
+      return;
+    }
     if (drawSource_ != DrawSource::ClickDrag) {
       startStroke(point, DrawSource::ClickDrag);
     } else {
@@ -460,16 +572,20 @@ void DrawingCanvas::mouseMoveEvent(QMouseEvent* event) {
     return;
   }
 
-  // Ignore the move generated by our own cursor warp right after the key goes down.
+  // Cursor fallback: only when absolute capture is not active. Mixing both is what
+  // made hold-to-write feel like "canvas not sized to the pad" / connected strokes.
   constexpr qint64 kWarpSettleMs = 250;
-  if (holdToWrite_ && !absoluteTrackpadDriving() && holdBeganAt_.isValid() &&
-      holdBeganAt_.elapsed() > kWarpSettleMs) {
+  if (holdToWrite_ && !absoluteCaptureActive() && !absoluteTrackpadDriving() &&
+      holdBeganAt_.isValid() && holdBeganAt_.elapsed() > kWarpSettleMs) {
     appendHoldToWritePoint(point);
   }
 }
 
 void DrawingCanvas::mouseReleaseEvent(QMouseEvent* event) {
   if (event->button() != Qt::LeftButton) {
+    return;
+  }
+  if (touchClickDrag_) {
     return;
   }
   if (drawSource_ == DrawSource::ClickDrag) {

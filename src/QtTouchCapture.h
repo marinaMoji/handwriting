@@ -12,8 +12,9 @@ class QtTouchCapture : public TrackpadSource {
   Q_OBJECT
 
  public:
-  explicit QtTouchCapture(QObject* parent = nullptr) : TrackpadSource(parent) {}
+  explicit QtTouchCapture(QObject* parent = nullptr);
   QString name() const override { return QStringLiteral("qt-touch"); }
+  bool isAvailable() const override;
 
   // Returns true if the event was a touchpad event consumed by this source.
   bool handleTouchEvent(QTouchEvent* event);

@@ -39,6 +39,8 @@ class EvdevTrackpadSource : public TrackpadSource {
     int slotCount = 1;
     bool hasToolType = false;
     bool hasPressure = false;
+    bool hasBtnTouch = false;
+    bool hasBtnToolFinger = false;
     int pressureMin = 0;
     int pressureMax = 1;
   };
@@ -55,4 +57,12 @@ class EvdevTrackpadSource : public TrackpadSource {
   MtSlotTracker tracker_;
   bool probed_ = false;
   bool probeOk_ = false;
+  // Some pads leave ABS_MT_TRACKING_ID stale on lift; BTN_TOUCH/BTN_TOOL_FINGER
+  // is the reliable "finger up" signal then.
+  bool hasBtnTouch_ = false;
+  bool hasBtnToolFinger_ = false;
+  bool btnTouchDown_ = false;
+  bool btnToolFingerDown_ = false;
+  bool sawBtnTouchEvent_ = false;
+  bool sawBtnToolFingerEvent_ = false;
 };

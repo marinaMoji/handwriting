@@ -3,6 +3,22 @@
 #include <QInputDevice>
 #include <QTouchEvent>
 
+QtTouchCapture::QtTouchCapture(QObject* parent) : TrackpadSource(parent) {
+  available_ = isAvailable();
+}
+
+bool QtTouchCapture::isAvailable() const {
+  // On Linux/Wayland, Qt almost never delivers raw TouchPad contacts to the
+  // window (the compositor owns the pad). Pretending we are available makes the
+  // app activate a no-op backend and fall through to broken cursor mapping.
+  // Opt back in with HANDWRITING_FORCE_QT_TOUCH=1 for rare setups that do work.
+#if defined(Q_OS_LINUX)
+  return qEnvironmentVariableIsSet("HANDWRITING_FORCE_QT_TOUCH");
+#else
+  return true;
+#endif
+}
+
 bool QtTouchCapture::handleTouchEvent(QTouchEvent* event) {
   if (!isActive() || event->device() == nullptr ||
       event->device()->type() != QInputDevice::DeviceType::TouchPad) {

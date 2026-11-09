@@ -41,11 +41,13 @@ TrackpadSource* createTrackpadSource(QWidget* host, QObject* parent, QString* fa
       return evdev;
     }
     delete evdev;
-    qWarning("evdev touchpad not available; falling back to qt-touch "
-             "(is the user in the `input` group?)");
+    qWarning("evdev touchpad not available (readable /dev/input/event* with ABS_MT_SLOT?). "
+             "Join the `input` group and re-login, or run scripts/evdev_probe.py");
     if (fallbackNote != nullptr) {
-      *fallbackNote = QObject::tr("No readable touchpad found (is your user in the `input` "
-                                  "group?); hold-to-write uses the cursor instead.");
+      *fallbackNote = QObject::tr(
+          "No readable absolute touchpad (evdev). Hold-to-write needs the `input` group "
+          "(sudo usermod -aG input $USER, then log out/in). Until then only click-drag is "
+          "reliable on Wayland.");
     }
   }
 #endif

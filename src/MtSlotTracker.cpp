@@ -1,22 +1,36 @@
 #include "MtSlotTracker.h"
 
+#include <QtMath>
+#include <cmath>
+
 void MtSlotTracker::configure(const Config& config) {
   cfg_ = config;
   slots_.fill(Slot{}, qMax(1, config.slotCount));
   current_ = 0;
   dropping_ = false;
   hasObserved_ = false;
+  hasCommitted_ = false;
 }
 
 void MtSlotTracker::reset() {
   slots_.clear();
   current_ = 0;
   dropping_ = false;
+  hasObserved_ = false;
+  hasCommitted_ = false;
 }
 
 void MtSlotTracker::apply(Slot& slot, quint16 code, qint32 value) {
   switch (code) {
-    case kAbsMtTrackingId: slot.trackingId = value; break;
+    case kAbsMtTrackingId:
+      // EVIOCGMTSLOTS / a previous contact often leave pressure at 0. Many pads then
+      // send TRACKING_ID + X/Y on finger-down without a fresh PRESSURE event in the
+      // same frame — treating that stale 0 as real would drop every contact.
+      if (slot.trackingId != value) {
+        slot.trackingId = value;
+        slot.pressure = -1;
+      }
+      break;
     case kAbsMtPositionX: slot.x = value; break;
     case kAbsMtPositionY: slot.y = value; break;
     case kAbsMtToolType: slot.toolType = value; break;
@@ -76,11 +90,7 @@ void MtSlotTracker::noteObserved(int x, int y) {
   obsYMax_ = qMax(obsYMax_, y);
 }
 
-void MtSlotTracker::effectiveRange(int* xMin, int* xMax, int* yMin, int* yMax) const {
-  *xMin = cfg_.absXMin;
-  *xMax = cfg_.absXMax;
-  *yMin = cfg_.absYMin;
-  *yMax = cfg_.absYMax;
+void MtSlotTracker::commitLearnedRange() {
   if (!cfg_.learnRange || !hasObserved_) {
     return;
   }
@@ -88,8 +98,8 @@ void MtSlotTracker::effectiveRange(int* xMin, int* xMax, int* yMin, int* yMax) c
   const int absSpanY = qMax(1, cfg_.absYMax - cfg_.absYMin);
   const int obsSpanX = obsXMax_ - obsXMin_;
   const int obsSpanY = obsYMax_ - obsYMin_;
-  // Wait until the finger has covered a meaningful fraction of the advertised range so a
-  // single corner tap does not shrink the map to a point.
+  // Wait until fingers have covered a meaningful fraction of the advertised range
+  // so a single corner tap does not shrink the map to a point.
   if (obsSpanX < absSpanX / 5 || obsSpanY < absSpanY / 5) {
     return;
   }
@@ -102,7 +112,43 @@ void MtSlotTracker::effectiveRange(int* xMin, int* xMax, int* yMin, int* yMax) c
   if (x1 <= x0 || y1 <= y0) {
     return;
   }
-  *xMin = x0; *xMax = x1; *yMin = y0; *yMax = y1;
+  comXMin_ = x0;
+  comXMax_ = x1;
+  comYMin_ = y0;
+  comYMax_ = y1;
+  hasCommitted_ = true;
+}
+
+void MtSlotTracker::effectiveRange(int* xMin, int* xMax, int* yMin, int* yMax) const {
+  *xMin = cfg_.absXMin;
+  *xMax = cfg_.absXMax;
+  *yMin = cfg_.absYMin;
+  *yMax = cfg_.absYMax;
+  // Only the last committed span is used. Live obs* keeps growing during a stroke
+  // but must not remap mid-stroke (that teleports the pen and splits the line).
+  if (cfg_.learnRange && hasCommitted_) {
+    *xMin = comXMin_;
+    *xMax = comXMax_;
+    *yMin = comYMin_;
+    *yMax = comYMax_;
+    return;
+  }
+  // Soft inset: advertised abs ranges usually extend a little past the glass.
+  const qreal inset = qBound<qreal>(0.0, cfg_.edgeInset, 0.2);
+  if (inset > 0.0) {
+    const int spanX = qMax(1, *xMax - *xMin);
+    const int spanY = qMax(1, *yMax - *yMin);
+    const int dx = qMax(1, static_cast<int>(std::lround(spanX * inset)));
+    const int dy = qMax(1, static_cast<int>(std::lround(spanY * inset)));
+    if (2 * dx < spanX) {
+      *xMin += dx;
+      *xMax -= dx;
+    }
+    if (2 * dy < spanY) {
+      *yMin += dy;
+      *yMax -= dy;
+    }
+  }
 }
 
 QVector<TrackpadContact> MtSlotTracker::contacts() {

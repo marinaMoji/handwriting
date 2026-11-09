@@ -6,6 +6,7 @@
 #include <QWidget>
 
 class QTimer;
+class QTouchEvent;
 class TrackpadSource;
 class QtTouchCapture;
 
@@ -29,6 +30,9 @@ class DrawingCanvas : public QWidget {
   // "hold-to-write", "click-drag", "mixed" or empty if no strokes were drawn since Clear.
   QString inputSourceLabel() const;
   QString backendNote() const { return backendNote_; }  // why a native backend was not used
+  QString captureBackendName() const;
+  bool absoluteCaptureActive() const;
+  bool absoluteFingerDown() const { return trackpadFingerVisible_; }
 
  public slots:
   void clearStrokes();
@@ -78,6 +82,9 @@ class DrawingCanvas : public QWidget {
   void updateTracking();
   void setCursorFrozen(bool frozen);
   bool absoluteTrackpadDriving() const;
+  // Wayland/Linux often delivers trackpad click-drag as QTouchEvent; draw from that
+  // when hold-to-write is off so we are not dependent on mouse-event synthesis.
+  bool handleTouchAsClickDrag(QTouchEvent* event);
 
   QVector<Stroke> strokes_;
   Stroke currentStroke_;
@@ -95,5 +102,6 @@ class DrawingCanvas : public QWidget {
   QPointF trackpadFingerNormalized_{-1.0, -1.0};
   bool trackpadFingerVisible_ = false;
   bool cursorStroke_ = false;  // in-progress hold stroke came from cursor fallback
+  bool touchClickDrag_ = false;  // current click-drag stroke came from a touch sequence
   QElapsedTimer holdBeganAt_;
 };

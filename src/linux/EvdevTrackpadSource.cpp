@@ -1,11 +1,12 @@
 #include "EvdevTrackpadSource.h"
 
 #include <QByteArray>
-#include <QDir>
 #include <QSocketNotifier>
 
 #include <cerrno>
+#include <cstdio>
 #include <cstring>
+#include <dirent.h>
 #include <fcntl.h>
 #include <linux/input.h>
 #include <sys/ioctl.h>
@@ -66,12 +67,34 @@ bool EvdevTrackpadSource::isAvailable() const {
 
 QVector<EvdevTrackpadSource::DeviceInfo> EvdevTrackpadSource::discoverDevices() {
   QVector<DeviceInfo> out;
-  const QDir dir(QStringLiteral("/dev/input"));
-  const QStringList nodes = dir.entryList(QStringList{QStringLiteral("event*")}, QDir::System);
-  for (const QString& node : nodes) {
-    const QString path = dir.filePath(node);
+  // Prefer POSIX readdir over QDir::System: device nodes in /dev/input have been
+  // easy to miss with Qt filters depending on version/platform.
+  DIR* dir = ::opendir("/dev/input");
+  if (dir == nullptr) {
+    qWarning("evdev: cannot open /dev/input (%s)", std::strerror(errno));
+    return out;
+  }
+  static const bool debug = qEnvironmentVariableIsSet("HANDWRITING_DEBUG_TOUCH");
+  int denied = 0;
+  while (true) {
+    errno = 0;
+    dirent* ent = ::readdir(dir);
+    if (ent == nullptr) {
+      break;
+    }
+    const QString node = QString::fromLocal8Bit(ent->d_name);
+    if (!node.startsWith(QStringLiteral("event"))) {
+      continue;
+    }
+    const QString path = QStringLiteral("/dev/input/") + node;
     const int fd = ::open(path.toLocal8Bit().constData(), O_RDONLY | O_NONBLOCK);
     if (fd < 0) {
+      if (errno == EACCES || errno == EPERM) {
+        ++denied;
+      }
+      if (debug) {
+        qInfo("evdev: skip %s (%s)", qPrintable(path), std::strerror(errno));
+      }
       continue;
     }
 
@@ -93,19 +116,22 @@ QVector<EvdevTrackpadSource::DeviceInfo> EvdevTrackpadSource::discoverDevices() 
         testBit(INPUT_PROP_POINTER, propBits) || testBit(BTN_TOOL_FINGER, keyBits) ||
         testBit(BTN_TOUCH, keyBits);
     const bool isDirect = testBit(INPUT_PROP_DIRECT, propBits);
+    char name[256] = {};
+    if (ioctl(fd, EVIOCGNAME(sizeof(name)), name) < 0) {
+      std::snprintf(name, sizeof(name), "%s", qPrintable(node));
+    }
     if (!hasMt || !hasSlot || !looksLikePad || isDirect) {
+      if (debug) {
+        qInfo("evdev: reject %s (%s) mt=%d slot=%d pad=%d direct=%d", qPrintable(path), name,
+              int(hasMt), int(hasSlot), int(looksLikePad), int(isDirect));
+      }
       ::close(fd);
       continue;
     }
 
     DeviceInfo info;
     info.path = path;
-    char name[256] = {};
-    if (ioctl(fd, EVIOCGNAME(sizeof(name)), name) >= 0) {
-      info.name = QString::fromLocal8Bit(name);
-    } else {
-      info.name = node;
-    }
+    info.name = QString::fromLocal8Bit(name);
 
     input_absinfo absX = {};
     input_absinfo absY = {};
@@ -130,6 +156,8 @@ QVector<EvdevTrackpadSource::DeviceInfo> EvdevTrackpadSource::discoverDevices() 
     info.slotCount = qMax(1, absSlot.maximum + 1);
 
     info.hasToolType = testBit(ABS_MT_TOOL_TYPE, absBits);
+    info.hasBtnTouch = testBit(BTN_TOUCH, keyBits);
+    info.hasBtnToolFinger = testBit(BTN_TOOL_FINGER, keyBits);
     if (testBit(ABS_MT_PRESSURE, absBits)) {
       input_absinfo absP = {};
       if (ioctl(fd, EVIOCGABS(ABS_MT_PRESSURE), &absP) >= 0) {
@@ -140,7 +168,17 @@ QVector<EvdevTrackpadSource::DeviceInfo> EvdevTrackpadSource::discoverDevices() 
     }
 
     ::close(fd);
+    if (debug) {
+      qInfo("evdev: candidate %s (%s) absX=[%d,%d] absY=[%d,%d]", qPrintable(info.path),
+            qPrintable(info.name), info.absXMin, info.absXMax, info.absYMin, info.absYMax);
+    }
     out.push_back(info);
+  }
+  ::closedir(dir);
+  if (out.isEmpty() && denied > 0) {
+    qWarning("evdev: %d /dev/input/event* node(s) not readable — add user to `input` group "
+             "and re-login (or run scripts/evdev_probe.py)",
+             denied);
   }
   return out;
 }
@@ -151,10 +189,23 @@ bool EvdevTrackpadSource::openDevice(const DeviceInfo& info) {
     qWarning("evdev: cannot open %s (add user to `input` group?)", qPrintable(info.path));
     return false;
   }
-  if (ioctl(fd_, EVIOCGRAB, 1) < 0) {
-    qWarning("evdev: EVIOCGRAB failed on %s (continuing without grab)", qPrintable(info.path));
-    reportProblem(tr("Could not take exclusive control of the touchpad (%1); the pointer will "
-                     "move while you write.").arg(info.name));
+  // Exclusive grab freezes the compositor's pointer. That is nice once absolute
+  // contacts are flowing, but if anything goes wrong the pad feels completely dead
+  // (no cursor fallback either). Default to sharing the event stream; opt in with
+  // HANDWRITING_EVDEV_GRAB=1 when you want the pointer locked.
+  const bool wantGrab = qEnvironmentVariableIntValue("HANDWRITING_EVDEV_GRAB") > 0;
+  if (wantGrab) {
+    if (ioctl(fd_, EVIOCGRAB, 1) < 0) {
+      qWarning("evdev: EVIOCGRAB failed on %s (continuing without grab)", qPrintable(info.path));
+      reportProblem(tr("Could not take exclusive control of the touchpad (%1); the pointer will "
+                       "move while you write.")
+                        .arg(info.name));
+    } else {
+      qInfo("evdev: grabbed %s (HANDWRITING_EVDEV_GRAB=1)", qPrintable(info.path));
+    }
+  } else {
+    qInfo("evdev: reading %s without grab (set HANDWRITING_EVDEV_GRAB=1 to lock the pointer)",
+          qPrintable(info.path));
   }
   MtSlotTracker::Config cfg;
   cfg.absXMin = info.absXMin;
@@ -166,8 +217,19 @@ bool EvdevTrackpadSource::openDevice(const DeviceInfo& info) {
   cfg.hasPressure = info.hasPressure;
   cfg.pressureMin = info.pressureMin;
   cfg.pressureMax = info.pressureMax;
-  cfg.learnRange = true;
+  // Full-pad mapping: use the device abs range with a small edge inset. Opt in to
+  // post-lift range learning only if the pad's abs window is wildly oversized.
+  bool edgeOk = false;
+  const qreal edge = qEnvironmentVariable("HANDWRITING_PAD_EDGE").toDouble(&edgeOk);
+  cfg.edgeInset = edgeOk ? qBound<qreal>(0.0, edge, 0.2) : 0.04;
+  cfg.learnRange = qEnvironmentVariableIntValue("HANDWRITING_LEARN_RANGE") > 0;
   tracker_.configure(cfg);
+  hasBtnTouch_ = info.hasBtnTouch;
+  hasBtnToolFinger_ = info.hasBtnToolFinger;
+  btnTouchDown_ = false;
+  btnToolFingerDown_ = false;
+  sawBtnTouchEvent_ = false;
+  sawBtnToolFingerEvent_ = false;
 
   // Prefer physical aspect (device units / resolution) when both axes report it.
   qreal aspect = 0.0;
@@ -191,8 +253,10 @@ bool EvdevTrackpadSource::openDevice(const DeviceInfo& info) {
 
   loadInitialSlots();
 
-  qInfo("evdev: using %s (%s) absX=[%d,%d] absY=[%d,%d] slots=%d", qPrintable(info.path),
-        qPrintable(info.name), info.absXMin, info.absXMax, info.absYMin, info.absYMax,
+  qInfo("evdev: using %s (%s) absX=[%d,%d] absY=[%d,%d] res=%d/%d aspect=%.3f "
+        "edgeInset=%.3f learnRange=%d slots=%d",
+        qPrintable(info.path), qPrintable(info.name), info.absXMin, info.absXMax, info.absYMin,
+        info.absYMax, info.resX, info.resY, aspect, cfg.edgeInset, int(cfg.learnRange),
         info.slotCount);
   return true;
 }
@@ -308,12 +372,45 @@ void EvdevTrackpadSource::onReadable() {
       break;
     }
 
+    if (ev.type == EV_KEY) {
+      if (ev.code == BTN_TOUCH) {
+        sawBtnTouchEvent_ = true;
+        btnTouchDown_ = ev.value != 0;
+      } else if (ev.code == BTN_TOOL_FINGER) {
+        sawBtnToolFingerEvent_ = true;
+        btnToolFingerDown_ = ev.value != 0;
+      }
+    }
+
     // SYN_DROPPED handling and slot bookkeeping live in the portable tracker.
     QVector<TrackpadContact> frame;
     switch (tracker_.feed(ev.type, ev.code, ev.value, &frame)) {
-      case MtSlotTracker::Result::Frame:
+      case MtSlotTracker::Result::Frame: {
+        // Prefer explicit finger-up keys when the pad keeps a stale tracking id.
+        // Only after we have seen the key at least once (initial state is unknown).
+        const bool keySaysUp =
+            (hasBtnTouch_ && sawBtnTouchEvent_ && !btnTouchDown_) ||
+            (hasBtnToolFinger_ && sawBtnToolFingerEvent_ && !btnToolFingerDown_ &&
+             !btnTouchDown_);
+        if (keySaysUp) {
+          frame.clear();
+        }
+        if (frame.isEmpty()) {
+          // Freeze the coordinate system used during the next stroke.
+          tracker_.commitLearnedRange();
+        }
+        static const bool debug = qEnvironmentVariableIsSet("HANDWRITING_DEBUG_TOUCH");
+        if (debug) {
+          qInfo("evdev frame contacts=%d btnTouch=%d toolFinger=%d", frame.size(),
+                int(btnTouchDown_), int(btnToolFingerDown_));
+          for (const TrackpadContact& c : frame) {
+            qInfo("  id=%d norm=(%.3f, %.3f)", c.identifier, c.normalized.x(),
+                  c.normalized.y());
+          }
+        }
         processContacts(frame);
         break;
+      }
       case MtSlotTracker::Result::NeedsResync:
         resyncAfterDrop();
         break;

@@ -24,6 +24,7 @@ static T::Config cfg() {
   c.absXMin = 0; c.absXMax = 1000;
   c.absYMin = 0; c.absYMax = 500;
   c.slotCount = 5;
+  c.edgeInset = 0.0;  // exact abs→normalized checks below
   return c;
 }
 
@@ -112,6 +113,24 @@ int main(int argc, char** argv) {
     expect(f.size() == 2, "unknown pressure is not filtered");
   }
 
+  // Stale pressure from EVIOCGMTSLOTS / a previous contact must not kill the next one.
+  {
+    T::Config c = cfg(); c.hasPressure = true; c.pressureMin = 0; c.pressureMax = 100;
+    T t; t.configure(c);
+    t.setSlotValue(0, T::kAbsMtPressure, 0);  // what an empty slot looks like after ioctl probe
+    abs(t, T::kAbsMtSlot, 0, &f);
+    abs(t, T::kAbsMtTrackingId, 9, &f);
+    abs(t, T::kAbsMtPositionX, 100, &f);
+    abs(t, T::kAbsMtPositionY, 100, &f);
+    // No ABS_MT_PRESSURE in this frame — common on Dell/Synaptics pads.
+    syn(t, &f);
+    expect(f.size() == 1 && f[0].identifier == 9,
+           "new tracking id clears stale pressure so the contact is kept");
+    abs(t, T::kAbsMtPressure, 1, &f);  // real near-zero reading after the contact started
+    syn(t, &f);
+    expect(f.isEmpty(), "explicit near-zero pressure still filters");
+  }
+
   // Positions clamp to 0-1 even if the device overshoots its range.
   {
     T t; t.configure(cfg());
@@ -140,9 +159,23 @@ int main(int argc, char** argv) {
     expect(syn(t, &f) == T::Result::Frame && qAbs(f[0].normalized.x() - 0.2) < 1e-9, "normal after resync");
   }
 
-  // Range learning: pad advertises 0-1000 but fingers only reach 200-800.
+  // Soft edge inset: advertised 0-1000 with 10% inset → usable 100-900.
   {
-    T::Config c = cfg(); c.absYMax = 1000; c.learnRange = true;
+    T::Config c = cfg(); c.edgeInset = 0.1; c.learnRange = false;
+    T t; t.configure(c);
+    abs(t, T::kAbsMtTrackingId, 1, &f);
+    abs(t, T::kAbsMtPositionX, 100, &f); abs(t, T::kAbsMtPositionY, 50, &f); syn(t, &f);
+    expect(qAbs(f[0].normalized.x()) < 1e-9, "inset lower edge maps to 0");
+    abs(t, T::kAbsMtPositionX, 900, &f); abs(t, T::kAbsMtPositionY, 450, &f); syn(t, &f);
+    expect(qAbs(f[0].normalized.x() - 1.0) < 1e-9, "inset upper edge maps to 1");
+    abs(t, T::kAbsMtPositionX, 500, &f); syn(t, &f);
+    expect(qAbs(f[0].normalized.x() - 0.5) < 1e-9, "inset center stays centered");
+  }
+
+  // Range learning (opt-in): pad advertises 0-1000 but fingers only reach 200-800.
+  // Learning is committed on lift so mid-stroke coordinates stay stable.
+  {
+    T::Config c = cfg(); c.absYMax = 1000; c.learnRange = true; c.edgeInset = 0.0;
     T t; t.configure(c);
     abs(t, T::kAbsMtTrackingId, 1, &f);
     abs(t, T::kAbsMtPositionX, 500, &f); abs(t, T::kAbsMtPositionY, 500, &f);
@@ -150,8 +183,16 @@ int main(int argc, char** argv) {
     expect(qAbs(f[0].normalized.x() - 0.5) < 1e-9, "no learning before enough range is covered");
     abs(t, T::kAbsMtPositionX, 200, &f); abs(t, T::kAbsMtPositionY, 200, &f); syn(t, &f);
     abs(t, T::kAbsMtPositionX, 800, &f); abs(t, T::kAbsMtPositionY, 800, &f); syn(t, &f);
-    expect(f[0].normalized.x() > 0.97 && f[0].normalized.x() <= 1.0, "learned range stretches the reachable span");
-    abs(t, T::kAbsMtPositionX, 200, &f); syn(t, &f);
+    expect(qAbs(f[0].normalized.x() - 0.8) < 1e-9,
+           "mid-stroke still uses the advertised range (no live remap)");
+    abs(t, T::kAbsMtTrackingId, -1, &f);
+    syn(t, &f);
+    t.commitLearnedRange();
+    abs(t, T::kAbsMtTrackingId, 2, &f);
+    abs(t, T::kAbsMtPositionX, 800, &f); abs(t, T::kAbsMtPositionY, 800, &f); syn(t, &f);
+    expect(f[0].normalized.x() > 0.97 && f[0].normalized.x() <= 1.0,
+           "after lift, learned range stretches the reachable span");
+    abs(t, T::kAbsMtPositionX, 200, &f); abs(t, T::kAbsMtPositionY, 200, &f); syn(t, &f);
     expect(f[0].normalized.x() < 0.03, "learned lower edge maps near 0");
   }
 
