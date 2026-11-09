@@ -25,6 +25,10 @@ add_library(zinnia STATIC
 set_target_properties(zinnia PROPERTIES AUTOMOC OFF AUTOUIC OFF AUTORCC OFF)
 target_include_directories(zinnia PUBLIC ${ZINNIA_DIR})
 target_compile_definitions(zinnia PUBLIC HAVE_CONFIG_H)
+if(WIN32)
+  # Static build: no dllimport/dllexport; mmap.h needs <windows.h> for HANDLE.
+  target_compile_definitions(zinnia PUBLIC ZINNIA_STATIC_LIBRARY HAVE_WINDOWS_H NOMINMAX)
+endif()
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
   target_compile_options(zinnia PRIVATE -Wno-deprecated-declarations)
 endif()
