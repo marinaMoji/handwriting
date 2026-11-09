@@ -128,6 +128,19 @@ int main(int argc, char** argv) {
     expect(out.size() == 2 && !out[0].isEmpty() && !out[1].isEmpty(), "apply keeps every stroke non-empty");
   }
 
+  // dropSpecks
+  {
+    auto line = [](int x0, int y0, int x1, int y1) { Stroke s; for (int i = 0; i <= 10; ++i) s.push_back({x0 + (x1 - x0) * i / 10, y0 + (y1 - y0) * i / 10}); return s; };
+    const Stroke dot1 = {{5, 5}};
+    const Stroke dot2 = {{9, 9}, {10, 10}};
+    const Stroke shortDash = {{0, 0}, {20, 0}};  // 2 points but 20 px long: a real stroke
+    const Stroke smallDot = line(50, 50, 55, 53);  // many points: a kanji dot
+    auto r = stroke_preprocess::dropSpecks({dot1, line(0, 0, 100, 0), dot2, shortDash, smallDot});
+    expect(r.size() == 3, "lone points and tiny 2-point specks dropped, real strokes kept");
+    expect(stroke_preprocess::dropSpecks({dot1, dot2}).size() == 2, "all specks -> input unchanged, never empty");
+    expect(stroke_preprocess::dropSpecks({}).isEmpty(), "empty stays empty");
+  }
+
   QTextStream(stdout) << (failures == 0 ? "All stroke_preprocess tests passed.\n" : "Some tests failed.\n");
   return failures == 0 ? 0 : 1;
 }

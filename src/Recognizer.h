@@ -12,6 +12,7 @@ class Recognizer {
  public:
   struct Options {
     bool fit = true;  // crop to the ink and fit; false recognizes at the surface size
+    bool dropSpecks = true;  // remove lone touch-downs / edge contacts before anything else
     int canvas = 300;
     int margin = 24;
     double maxScale = 4.0;

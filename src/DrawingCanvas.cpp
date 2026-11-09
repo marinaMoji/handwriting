@@ -1,4 +1,5 @@
 #include "DrawingCanvas.h"
+#include "StrokePreprocess.h"
 
 #include "CursorFreeze.h"
 #include "HoldKey.h"
@@ -385,7 +386,10 @@ void DrawingCanvas::finishStroke() {
     return;
   }
   // A lone point from cursor fallback is noise (e.g. the pointer being moved), not a stroke.
-  const bool noise = cursorStroke_ && currentStroke_.size() < 2;
+  // So is any no-length tap (a touch-down without movement, an edge or palm contact): it would
+  // count as a phantom stroke and distort the crop. Real dots are written with some movement.
+  const bool noise = (cursorStroke_ && currentStroke_.size() < 2) ||
+                     stroke_preprocess::isSpeck(currentStroke_);
   if (!currentStroke_.isEmpty() && !noise) {
     strokes_.push_back(currentStroke_);
   }

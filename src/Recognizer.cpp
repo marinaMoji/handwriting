@@ -37,8 +37,10 @@ bool Recognizer::optionsFromSpec(const QString& fullSpec, Options* out, QString*
   return true;
 }
 
-Recognizer::Prepared Recognizer::prepare(const QVector<Stroke>& raw, int surfaceWidth,
+Recognizer::Prepared Recognizer::prepare(const QVector<Stroke>& rawInput, int surfaceWidth,
                                          int surfaceHeight, const Options& options) {
+  const QVector<Stroke> raw =
+      options.dropSpecks ? stroke_preprocess::dropSpecks(rawInput) : rawInput;
   Prepared p;
   if (!options.fit) {
     p.strokes = stroke_preprocess::apply(raw, options.preprocess);

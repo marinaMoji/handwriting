@@ -163,6 +163,33 @@ inline bool parseSpec(const QString& spec, Options* out, QString* error = nullpt
   return true;
 }
 
+// Remove specks: strokes with at most `maxPoints` points whose path is shorter than `maxLength`
+// (a lone touch-down, an edge/palm contact). Real dots (kanji dot strokes) have several points
+// or more length, so they stay. Never returns an empty list: if everything is a speck the
+// input is returned unchanged.
+inline bool isSpeck(const Stroke& s, double maxLength = 8.0, int maxPoints = 2) {
+  if (s.size() > maxPoints) {
+    return false;
+  }
+  double len = 0.0;
+  for (int i = 1; i < s.size(); ++i) {
+    len += std::hypot(double(s[i].x - s[i - 1].x), double(s[i].y - s[i - 1].y));
+  }
+  return len < maxLength;
+}
+
+inline QVector<Stroke> dropSpecks(const QVector<Stroke>& strokes, double maxLength = 8.0,
+                                  int maxPoints = 2) {
+  QVector<Stroke> out;
+  out.reserve(strokes.size());
+  for (const Stroke& s : strokes) {
+    if (!isSpeck(s, maxLength, maxPoints)) {
+      out.push_back(s);
+    }
+  }
+  return out.isEmpty() ? strokes : out;
+}
+
 inline QVector<Stroke> apply(const QVector<Stroke>& strokes, const Options& opts) {
   if (opts.isNone()) {
     return strokes;

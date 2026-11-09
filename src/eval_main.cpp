@@ -55,6 +55,7 @@ double gMaxScale = 4.0;
 Recognizer::Options optionsFor(const QString& variant) {
   Recognizer::Options o;
   if (variant == QLatin1String("raw")) {
+    o.dropSpecks = false;
     o.fit = false;  // recognized at the surface size, no crop/fit, no preprocessing
     return o;
   }
@@ -79,6 +80,7 @@ int main(int argc, char** argv) {
   int kvgMax = 0;
   unsigned seed = 1234;
   double tolPenalty = 0.0;
+  bool keepSpecks = false;
   int charSplit = -1;  // 0/1: keep only samples whose first code point is even/odd
   int synthetic = 0;
   double noise = 1.0;
@@ -110,6 +112,7 @@ int main(int argc, char** argv) {
     else if (a == QLatin1String("--kanjivg")) kvgPath = next();
     else if (a == QLatin1String("--kvg-chars")) kvgChars = next();
     else if (a == QLatin1String("--kvg-max")) kvgMax = next().toInt();
+    else if (a == QLatin1String("--keep-specks")) keepSpecks = true;
     else if (a == QLatin1String("--tol-penalty")) tolPenalty = next().toDouble();
     else if (a == QLatin1String("--char-split")) charSplit = next().toInt();
     else if (a == QLatin1String("--seed")) seed = next().toUInt();
@@ -253,6 +256,7 @@ int main(int argc, char** argv) {
       Stats st;
       Recognizer::Options ropts = optionsFor(variant);
       ropts.tolerancePenalty = tolPenalty;
+      if (keepSpecks) ropts.dropSpecks = false;
       if (m.startsWith(QLatin1String("both/"))) {
         fusion::parse(m.mid(5), &ropts.fusion);
         ropts.fusionParams = fparams;
