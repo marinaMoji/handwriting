@@ -16,6 +16,7 @@
 #include "StrokeMapping.h"
 #include "StrokePreprocess.h"
 #include "SyntheticCorpus.h"
+#include "KanjiVgCorpus.h"
 #include "Recognizer.h"
 #include "ZinniaBackend.h"
 
@@ -74,7 +75,9 @@ int main(int argc, char** argv) {
 
   QString samplesDir = QString::fromUtf8(HANDWRITING_DEFAULT_SAMPLES_DIR);
   QString modelDir = QString::fromUtf8(HANDWRITING_DEFAULT_MODEL_DIR);
-  QString csvPath, saveSyntheticDir;
+  QString csvPath, saveSyntheticDir, kvgPath, kvgChars;
+  int kvgMax = 0;
+  unsigned seed = 1234;
   int synthetic = 0;
   double noise = 1.0;
   double step = 2.5;
@@ -96,6 +99,10 @@ int main(int argc, char** argv) {
     else if (a == QLatin1String("--variants")) variants = next().split(',', Qt::SkipEmptyParts);
     else if (a == QLatin1String("--csv")) csvPath = next();
     else if (a == QLatin1String("--save-synthetic")) saveSyntheticDir = next();
+    else if (a == QLatin1String("--kanjivg")) kvgPath = next();
+    else if (a == QLatin1String("--kvg-chars")) kvgChars = next();
+    else if (a == QLatin1String("--kvg-max")) kvgMax = next().toInt();
+    else if (a == QLatin1String("--seed")) seed = next().toUInt();
     else if (a == QLatin1String("--misses")) showMisses = true;
     else if (a == QLatin1String("--noise")) noise = next().toDouble();
     else if (a == QLatin1String("--step")) step = next().toDouble();
@@ -105,7 +112,8 @@ int main(int argc, char** argv) {
     else if (a == QLatin1String("--help") || a == QLatin1String("-h")) {
       out << "usage: handwriting_eval [--samples DIR] [--synthetic N] [--models DIR]\n"
              "       [--modes ja,tw,both] [--variants raw,none,rdp:3,smooth:2+rdp:3]\n"
-             "       [--misses] [--csv FILE] [--save-synthetic DIR]\n";
+             "       [--misses] [--csv FILE] [--save-synthetic DIR]\n"
+             "       [--kanjivg FILE [--kvg-chars STR] [--kvg-max N]] [--seed N]\n";
       return 0;
     } else {
       err << "unknown argument: " << a << "\n";
@@ -141,6 +149,7 @@ int main(int argc, char** argv) {
     else { ++skipped; err << "skip " << f << ": " << e << "\n"; }
   }
   const int realCount = samples.size();
+  if (!kvgPath.isEmpty() && synthetic <= 0) synthetic = 1;
   if (synthetic > 0) {
     synthetic::Params sp;
     sp.stepPx = step;
@@ -152,7 +161,19 @@ int main(int argc, char** argv) {
       sp.noTranslate = true;
       sp.noAspectJitter = true;
     }
-    const QVector<Sample> syn = synthetic::generate(synthetic, 1234, sp);
+    QVector<Sample> syn;
+    if (kvgPath.isEmpty()) {
+      syn = synthetic::generate(synthetic, seed, sp);
+    } else {
+      QString kerr;
+      QVector<synthetic::Template> tpls = kanjivg::loadTemplates(kvgPath, &kerr, kvgChars);
+      if (tpls.isEmpty()) {
+        err << "KanjiVG: " << (kerr.isEmpty() ? QStringLiteral("no usable characters") : kerr) << "\n";
+        return 1;
+      }
+      tpls = kanjivg::subsample(tpls, kvgMax, seed);
+      syn = synthetic::generateFrom(tpls, synthetic, seed, sp);
+    }
     if (!saveSyntheticDir.isEmpty()) {
       for (const Sample& s : syn) {
         QString p, e;

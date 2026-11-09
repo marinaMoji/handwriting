@@ -174,3 +174,8 @@ add_executable(handwriting_recognize src/recognize_main.cpp)
 target_link_libraries(handwriting_recognize PRIVATE handwriting_backend)
 target_compile_definitions(handwriting_recognize PRIVATE
   HANDWRITING_DEFAULT_MODEL_DIR="${CMAKE_CURRENT_SOURCE_DIR}/models")
+
+add_executable(kanjivg_test tests/kanjivg_test.cpp)
+target_include_directories(kanjivg_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_libraries(kanjivg_test PRIVATE handwriting_backend)
+add_test(NAME kanjivg_test COMMAND kanjivg_test)

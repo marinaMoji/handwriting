@@ -80,10 +80,22 @@ jobs:
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
           cmake --build build --target handwriting_eval --parallel
 
-      - name: Run eval
+      - name: Cache KanjiVG
+        uses: actions/cache@v4
+        with:
+          path: data
+          key: kanjivg-r20260714
+
+      - name: Fetch KanjiVG
+        run: bash scripts/fetch_kanjivg.sh
+
+      - name: Run eval (KanjiVG synthetic)
         run: |
-          ./build/handwriting_eval --models models --synthetic 10 --modes ja,tw,both \
-            --variants raw,resample:4+smooth:3 --csv eval.csv | tee eval.txt
+          ./build/handwriting_eval --models models --kanjivg data/kanjivg.xml --kvg-max 300 \
+            --modes ja,tw,both --variants resample:4+smooth:3 --csv eval.csv | tee eval.txt
+
+      - name: Accuracy gate
+        run: python3 scripts/check_eval_gate.py eval.csv
 
       - uses: actions/upload-artifact@v4
         with:

@@ -1,0 +1,9 @@
+{
+  "_comment": "Minimum accuracy (percent) for the CI eval gate: KanjiVG synthetic, 300 chars, seed 1234, variant resample:4+smooth:3. Measured locally 2026-11-09: ja 81.7/89.0, tw 56.0/68.7, both 81.7/91.7 (top1/top5). Thresholds sit a few points below; raise them deliberately when accuracy improves.",
+  "variant": "resample:4+smooth:3",
+  "min": {
+    "ja":   {"top1": 77.0, "top5": 85.0},
+    "tw":   {"top1": 51.0, "top5": 63.0},
+    "both": {"top1": 77.0, "top5": 87.0}
+  }
+}

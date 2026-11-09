@@ -16,7 +16,7 @@
 namespace synthetic {
 
 struct Template {
-  const char* character;
+  QString character;
   QVector<Stroke> strokes;  // in a 300x300 box
 };
 
@@ -59,13 +59,14 @@ struct Params {
 };
 
 // n variants per template; deterministic for a given seed.
-inline QVector<Sample> generate(int perTemplate, unsigned seed = 1234, const Params& p = {}) {
+inline QVector<Sample> generateFrom(const QVector<Template>& templates, int perTemplate,
+                                    unsigned seed = 1234, const Params& p = {}) {
   std::mt19937 rng(seed);
   auto uni = [&](double a, double b) { return std::uniform_real_distribution<double>(a, b)(rng); };
   std::normal_distribution<double> gauss(0.0, 1.0);
 
   QVector<Sample> out;
-  for (const Template& tpl : templates()) {
+  for (const Template& tpl : templates) {
     for (int v = 0; v < perTemplate; ++v) {
       const double sx = uni(p.scaleMin, p.scaleMax) * (p.noAspectJitter ? 1.0 : uni(0.9, 1.15));
       const double sy = uni(p.scaleMin, p.scaleMax);
@@ -76,7 +77,7 @@ inline QVector<Sample> generate(int perTemplate, unsigned seed = 1234, const Par
       const double freq = uni(0.02, 0.06);
 
       Sample s;
-      s.character = QString::fromUtf8(tpl.character);
+      s.character = tpl.character;
       s.source = QStringLiteral("synthetic");
       s.surfaceWidth = p.surfaceW;
       s.surfaceHeight = p.surfaceH;
@@ -114,6 +115,10 @@ inline QVector<Sample> generate(int perTemplate, unsigned seed = 1234, const Par
     }
   }
   return out;
+}
+
+inline QVector<Sample> generate(int perTemplate, unsigned seed = 1234, const Params& p = {}) {
+  return generateFrom(templates(), perTemplate, seed, p);
 }
 
 }  // namespace synthetic
