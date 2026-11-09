@@ -20,6 +20,15 @@ TrackpadSource* createTrackpadSource(QWidget* host, QObject* parent, QString* fa
   const QString pref = qEnvironmentVariable("HANDWRITING_CAPTURE").toLower();
 
   if (pref == QStringLiteral("qt")) {
+#ifdef Q_OS_MACOS
+    qWarning("HANDWRITING_CAPTURE=qt: Qt does not deliver trackpad touches on macOS; "
+             "hold-to-write will not work. Unset it to use the native nstouch backend.");
+    if (fallbackNote != nullptr) {
+      *fallbackNote = QObject::tr(
+          "HANDWRITING_CAPTURE=qt is set: Qt gets no trackpad touches on macOS, so trackpad "
+          "writing will not work. Unset it (or use nstouch).");
+    }
+#endif
     return new QtTouchCapture(parent);
   }
 
