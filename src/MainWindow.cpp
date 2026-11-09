@@ -3,6 +3,7 @@
 #include "CandidatePanel.h"
 #include "DrawingCanvas.h"
 #include "HoldKey.h"
+#include "Recognizer.h"
 #include "SampleIO.h"
 #include "StrokePreprocess.h"
 #include "StrokeMapping.h"
@@ -127,15 +128,16 @@ MainWindow::MainWindow(ZinniaBackend* backend, QWidget* parent)
 namespace {
 // Default measured with handwriting_eval on synthetic jittery ink (docs/findings.md).
 // Override with HANDWRITING_PREPROCESS (e.g. "none", "smooth:2", "resample:4+smooth:3").
-const stroke_preprocess::Options& preprocessOptions() {
-  static const stroke_preprocess::Options opts = []() {
-    stroke_preprocess::Options o;
-    QString spec = qEnvironmentVariable("HANDWRITING_PREPROCESS", QStringLiteral("resample:4+smooth:3"));
+const Recognizer::Options& recognizerOptions() {
+  static const Recognizer::Options opts = []() {
+    QString spec = qEnvironmentVariable("HANDWRITING_PREPROCESS",
+                                        QString::fromLatin1(Recognizer::kDefaultPreprocessSpec));
+    Recognizer::Options o;
     QString error;
-    if (!stroke_preprocess::parseSpec(spec, &o, &error)) {
+    if (!Recognizer::optionsFromSpec(spec, &o, &error)) {
       qWarning("HANDWRITING_PREPROCESS: %s; using the default", qPrintable(error));
-      stroke_preprocess::parseSpec(QStringLiteral("resample:4+smooth:3"), &o);
-      spec = QStringLiteral("resample:4+smooth:3");
+      o = Recognizer::defaultOptions();
+      spec = QString::fromLatin1(Recognizer::kDefaultPreprocessSpec);
     }
     qInfo("stroke preprocessing: %s", qPrintable(spec));
     return o;
@@ -310,10 +312,9 @@ void MainWindow::runRecognition() {
   const RecognitionMode mode = currentMode();
   const int w = canvas_->logicalWidth();
   const int h = canvas_->logicalHeight();
-  // Crop to the ink and fit the recognizer canvas, so position/size on the surface do not matter.
-  const QVector<Stroke> strokes =
-      stroke_preprocess::apply(stroke_mapping::fitToCanvas(rawStrokes, w, h), preprocessOptions());
-  ZinniaBackend* backend = backend_;
+  // Crop/fit/preprocess happen inside the shared Recognizer pipeline.
+  const Recognizer recognizer(backend_);
+  const Recognizer::Options options = recognizerOptions();
 
   auto* watcher = new QFutureWatcher<RecognitionResult>(this);
   connect(watcher, &QFutureWatcher<RecognitionResult>::finished, this, [this, watcher, generation]() {
@@ -327,8 +328,8 @@ void MainWindow::runRecognition() {
     copyButton_->setEnabled(!candidates_->selectedCharacter().isEmpty());
   });
 
-  QFuture<RecognitionResult> future = QtConcurrent::run([backend, strokes, mode, w, h]() {
-    return backend->recognize(strokes, mode, w, h, 10);
+  QFuture<RecognitionResult> future = QtConcurrent::run([recognizer, rawStrokes, mode, w, h, options]() {
+    return recognizer.recognize(rawStrokes, w, h, mode, options);
   });
   watcher->setFuture(future);
 }

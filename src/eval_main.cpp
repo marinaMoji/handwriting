@@ -16,6 +16,7 @@
 #include "StrokeMapping.h"
 #include "StrokePreprocess.h"
 #include "SyntheticCorpus.h"
+#include "Recognizer.h"
 #include "ZinniaBackend.h"
 
 #include <QCoreApplication>
@@ -50,13 +51,16 @@ int rankOf(const RecognitionResult& r, const QString& ch) {
 int gMargin = 24;
 double gMaxScale = 4.0;
 
-QVector<Stroke> pipeline(const Sample& s, const QString& variant) {
+Recognizer::Options optionsFor(const QString& variant) {
+  Recognizer::Options o;
   if (variant == QLatin1String("raw")) {
-    return s.strokes;  // recognized at the surface size, no crop/fit
+    o.fit = false;  // recognized at the surface size, no crop/fit, no preprocessing
+    return o;
   }
-  stroke_preprocess::Options opts;
-  stroke_preprocess::parseSpec(variant, &opts);
-  return stroke_preprocess::apply(stroke_mapping::fitToCanvas(s.strokes, 300, 300, gMargin, gMaxScale), opts);
+  Recognizer::optionsFromSpec(variant, &o);
+  o.margin = gMargin;
+  o.maxScale = gMaxScale;
+  return o;
 }
 
 }  // namespace
@@ -119,6 +123,7 @@ int main(int argc, char** argv) {
   }
 
   ZinniaBackend backend;
+  const Recognizer recognizer(&backend);
   QString loadError;
   if (!backend.loadModels(modelDir, &loadError)) {
     err << "Failed to load models from " << modelDir << ": " << loadError << "\n";
@@ -187,14 +192,11 @@ int main(int argc, char** argv) {
   for (const QString& variant : variants) {
     for (const QString& m : modes) {
       Stats st;
-      const bool raw = variant == QLatin1String("raw");
       for (const Sample& s : samples) {
-        const QVector<Stroke> strokes = pipeline(s, variant);
-        const int w = raw ? s.surfaceWidth : 300;
-        const int h = raw ? s.surfaceHeight : 300;
         QElapsedTimer t;
         t.start();
-        const RecognitionResult r = backend.recognize(strokes, modeOf(m), w, h, 10);
+        const RecognitionResult r = recognizer.recognize(s.strokes, s.surfaceWidth, s.surfaceHeight,
+                                                         modeOf(m), optionsFor(variant));
         st.latencySum += t.nsecsElapsed() / 1e6;
         const int rank = rankOf(r, s.character);
         ++st.n;

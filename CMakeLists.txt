@@ -37,6 +37,7 @@ endif()
 add_library(handwriting_backend STATIC
   src/ZinniaBackend.cpp
   src/SampleIO.cpp
+  src/Recognizer.cpp
 )
 set_target_properties(handwriting_backend PROPERTIES AUTOMOC OFF AUTOUIC OFF AUTORCC OFF)
 target_include_directories(handwriting_backend PUBLIC
@@ -164,3 +165,12 @@ add_executable(mt_slot_tracker_test
 target_include_directories(mt_slot_tracker_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(mt_slot_tracker_test PRIVATE Qt6::Core)
 add_test(NAME mt_slot_tracker_test COMMAND mt_slot_tracker_test)
+
+add_executable(recognizer_test tests/recognizer_test.cpp)
+target_link_libraries(recognizer_test PRIVATE handwriting_backend)
+add_test(NAME recognizer_test COMMAND recognizer_test)
+
+add_executable(handwriting_recognize src/recognize_main.cpp)
+target_link_libraries(handwriting_recognize PRIVATE handwriting_backend)
+target_compile_definitions(handwriting_recognize PRIVATE
+  HANDWRITING_DEFAULT_MODEL_DIR="${CMAKE_CURRENT_SOURCE_DIR}/models")

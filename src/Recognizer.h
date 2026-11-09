@@ -1,0 +1,43 @@
+#pragma once
+
+#include "StrokePreprocess.h"
+#include "ZinniaBackend.h"
+
+// The single recognition pipeline shared by the app, the eval tool and the CLI:
+//   raw surface strokes -> crop/fit to the recognizer canvas -> preprocess -> model(s).
+// Thread-safe as long as the backend outlives it (the backend serialises model access).
+class Recognizer {
+ public:
+  struct Options {
+    bool fit = true;  // crop to the ink and fit; false recognizes at the surface size
+    int canvas = 300;
+    int margin = 24;
+    double maxScale = 4.0;
+    int topN = 10;
+    stroke_preprocess::Options preprocess;
+  };
+
+  static constexpr const char* kDefaultPreprocessSpec = "resample:4+smooth:3";
+
+  // Default options (fit + default preprocessing).
+  static Options defaultOptions();
+  // Default options with a preprocessing spec ("none", "rdp:3", "resample:4+smooth:3", ...).
+  static bool optionsFromSpec(const QString& spec, Options* out, QString* error = nullptr);
+
+  explicit Recognizer(const ZinniaBackend* backend) : backend_(backend) {}
+
+  // Everything before the model: returns the strokes and canvas size handed to Zinnia.
+  struct Prepared {
+    QVector<Stroke> strokes;
+    int width = 0;
+    int height = 0;
+  };
+  static Prepared prepare(const QVector<Stroke>& raw, int surfaceWidth, int surfaceHeight,
+                          const Options& options);
+
+  RecognitionResult recognize(const QVector<Stroke>& raw, int surfaceWidth, int surfaceHeight,
+                              RecognitionMode mode, const Options& options) const;
+
+ private:
+  const ZinniaBackend* backend_;
+};
