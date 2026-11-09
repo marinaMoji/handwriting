@@ -41,6 +41,8 @@ class TrackpadSource : public QObject {
   // Physical pad width/height, when the backend can tell. Emitted before the contact
   // it was learned from is processed.
   void padAspectChanged(qreal aspect);
+  // Something the user should know (permissions, device lost, no pointer grab...).
+  void problem(const QString& message);
 
  protected:
   // Backend hooks. startBackend() returns false if the device cannot be used.
@@ -50,12 +52,14 @@ class TrackpadSource : public QObject {
   // Feed the currently touching contacts (empty = all fingers lifted).
   void processContacts(const QVector<TrackpadContact>& contacts);
 
+  void reportProblem(const QString& message);  // emits problem()
   void reportPadAspect(qreal aspect);  // call with width/height; ignores invalid values
 
   bool available_ = true;
 
  private:
   qreal reportedAspect_ = 0.0;
+  bool problemSinceStart_ = false;
   bool active_ = false;
   bool receivedContact_ = false;
   bool touching_ = false;

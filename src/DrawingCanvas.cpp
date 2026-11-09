@@ -1,13 +1,11 @@
 #include "DrawingCanvas.h"
 
-#include "HoldKey.h"
-#include "StrokeMapping.h"
 #include "CursorFreeze.h"
+#include "HoldKey.h"
 #include "QtTouchCapture.h"
+#include "StrokeMapping.h"
 #include "TrackpadSource.h"
-#ifdef Q_OS_MACOS
-#include "macos/NSTouchCapture.h"
-#endif
+#include "TrackpadSourceFactory.h"
 
 #include <QCursor>
 #include <QEvent>
@@ -42,18 +40,10 @@ DrawingCanvas::DrawingCanvas(QWidget* parent) : QWidget(parent) {
 
   setAttribute(Qt::WA_AcceptTouchEvents, true);
 
-  // Backend: NSTouch (public AppKit API) on macOS; Qt touch events elsewhere. Override with
-  // HANDWRITING_CAPTURE=qt|ns. Qt does not deliver trackpad touches on macOS, so it is the
-  // generic fallback only.
-#ifdef Q_OS_MACOS
-  if (qEnvironmentVariable("HANDWRITING_CAPTURE") != QStringLiteral("qt")) {
-    trackpadCapture_ = new NSTouchCapture(this, this);
-  }
-#endif
-  if (trackpadCapture_ == nullptr) {
-    qtTouch_ = new QtTouchCapture(this);
-    trackpadCapture_ = qtTouch_;
-  }
+  // Platform native absolute backends plug into TrackpadSource; Qt touch is the portable fallback.
+  // Override with HANDWRITING_CAPTURE=qt|nstouch|evdev|rawinput.
+  trackpadCapture_ = createTrackpadSource(this, this, &backendNote_);
+  qtTouch_ = qobject_cast<QtTouchCapture*>(trackpadCapture_);
   qInfo("trackpad capture backend: %s", qPrintable(trackpadCapture_->name()));
   bool aspectOk = false;
   const qreal forced = qEnvironmentVariable("HANDWRITING_PAD_ASPECT").toDouble(&aspectOk);
@@ -61,6 +51,7 @@ DrawingCanvas::DrawingCanvas(QWidget* parent) : QWidget(parent) {
     padAspect_ = forced;
     padAspectFixed_ = true;
   }
+  connect(trackpadCapture_, &TrackpadSource::problem, this, &DrawingCanvas::trackpadProblem);
   connect(trackpadCapture_, &TrackpadSource::padAspectChanged, this,
           &DrawingCanvas::onPadAspectChanged);
   connect(trackpadCapture_, &TrackpadSource::firstContact, this,

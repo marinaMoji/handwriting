@@ -77,6 +77,8 @@ MainWindow::MainWindow(ZinniaBackend* backend, QWidget* parent)
 
   connect(canvas_, &DrawingCanvas::strokesChanged, this, &MainWindow::onStrokesChanged);
   connect(canvas_, &DrawingCanvas::holdToWriteChanged, this, &MainWindow::onHoldToWriteChanged);
+  connect(canvas_, &DrawingCanvas::trackpadProblem, this,
+          [this](const QString& message) { statusBar()->showMessage(message, 10000); });
   connect(modeCombo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
           &MainWindow::onStrokesChanged);
   connect(clearBtn, &QPushButton::clicked, this, &MainWindow::clearAll);
@@ -97,6 +99,9 @@ MainWindow::MainWindow(ZinniaBackend* backend, QWidget* parent)
       tr("Click-drag or hold ` to write · JA: %1 · TW: %2")
           .arg(QFileInfo(backend_->japaneseModelPath()).fileName())
           .arg(QFileInfo(backend_->traditionalModelPath()).fileName()));
+  if (!canvas_->backendNote().isEmpty()) {
+    statusBar()->showMessage(canvas_->backendNote(), 15000);
+  }
 }
 
 RecognitionMode MainWindow::currentMode() const {

@@ -52,6 +52,8 @@ set(HANDWRITING_APP_SOURCES
   src/DrawingCanvas.cpp
   src/CandidatePanel.cpp
   src/TrackpadSource.cpp
+  src/TrackpadSourceFactory.cpp
+  src/PtpFrameAssembler.cpp
   src/QtTouchCapture.cpp
   src/CursorFreeze.cpp
 )
@@ -61,6 +63,14 @@ if(APPLE)
   list(APPEND HANDWRITING_APP_SOURCES
     src/macos/NSTouchCapture.mm
     src/macos/CursorFreeze.mm
+  )
+elseif(WIN32)
+  list(APPEND HANDWRITING_APP_SOURCES
+    src/windows/RawInputTrackpadSource.cpp
+  )
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  list(APPEND HANDWRITING_APP_SOURCES
+    src/linux/EvdevTrackpadSource.cpp
   )
 endif()
 
@@ -79,6 +89,8 @@ if(APPLE)
   set_source_files_properties(src/macos/NSTouchCapture.mm PROPERTIES
     COMPILE_FLAGS "-fobjc-arc"
   )
+elseif(WIN32)
+  target_link_libraries(handwriting_app PRIVATE hid setupapi)
 endif()
 
 target_compile_definitions(handwriting_smoke PRIVATE
@@ -104,3 +116,11 @@ add_executable(trackpad_source_test
 target_include_directories(trackpad_source_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(trackpad_source_test PRIVATE Qt6::Core)
 add_test(NAME trackpad_source_test COMMAND trackpad_source_test)
+
+add_executable(ptp_frame_test
+  tests/ptp_frame_test.cpp
+  src/PtpFrameAssembler.cpp
+)
+target_include_directories(ptp_frame_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_libraries(ptp_frame_test PRIVATE Qt6::Core)
+add_test(NAME ptp_frame_test COMMAND ptp_frame_test)

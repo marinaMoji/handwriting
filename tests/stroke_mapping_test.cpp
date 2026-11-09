@@ -81,6 +81,16 @@ int main(int argc, char** argv) {
            "mac grave key code matches regardless of layout character");
     expect(!hold_key::isHoldToWriteKey(Qt::Key_QuoteLeft, 0x31),
            "mac key code wins over character when present");
+#elif defined(Q_OS_WIN)
+    expect(hold_key::isHoldToWriteKey(Qt::Key_A, 0, hold_key::kWinGraveScanCode),
+           "win scan 0x29 matches regardless of layout character");
+    expect(!hold_key::isHoldToWriteKey(Qt::Key_QuoteLeft, 0, 0x1E),
+           "win scan code wins over character when present");
+#elif defined(Q_OS_LINUX)
+    expect(hold_key::isHoldToWriteKey(Qt::Key_A, 0, hold_key::kX11GraveKeycode),
+           "X11 keycode 49 matches regardless of layout character");
+    expect(!hold_key::isHoldToWriteKey(Qt::Key_QuoteLeft, 0, 30),
+           "X11 keycode wins over character when present");
 #endif
   }
 

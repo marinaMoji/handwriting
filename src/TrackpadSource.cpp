@@ -9,8 +9,13 @@ void TrackpadSource::setActive(bool active) {
     return;
   }
   if (active) {
+    // A failed start is transient (permissions, device busy); keep probing available_
+    // so the UI can retry when the user holds the key again.
+    problemSinceStart_ = false;
     if (!available_ || !startBackend()) {
-      available_ = false;
+      if (!problemSinceStart_) {
+        emit problem(tr("Trackpad input (%1) is not available; using cursor fallback.").arg(name()));
+      }
       return;
     }
     receivedContact_ = false;
@@ -93,4 +98,9 @@ void TrackpadSource::reportPadAspect(qreal aspect) {
   }
   reportedAspect_ = aspect;
   emit padAspectChanged(aspect);
+}
+
+void TrackpadSource::reportProblem(const QString& message) {
+  problemSinceStart_ = true;
+  emit problem(message);
 }
