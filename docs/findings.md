@@ -38,3 +38,8 @@ Seed list: [`tests/samples.json`](../tests/samples.json).
 _Pending Phase D interactive testing with the GUI (`./build/handwriting_app`)._
 
 Question to answer: Is Zinnia/Tegaki good enough as marinaMoji’s first handwriting backend, or should we investigate a modern neural alternative?
+
+
+## Synthetic preprocessing results (offline)
+
+Measured with `handwriting_eval --synthetic` on 15 simple kanji. Smoothing of dense noisy ink gave a large gain; RDP at epsilon <= 8 is a no-op (Zinnia simplifies at about 9.5px itself). Larger crop margins and RDP epsilon 12 looked better but the corpus is simple characters only, so they were deliberately not adopted. Default is `resample:4+smooth:3`. Re-tune only with real saved samples, including complex characters.

@@ -3,11 +3,14 @@
 #include "CandidatePanel.h"
 #include "DrawingCanvas.h"
 #include "HoldKey.h"
+#include "SampleIO.h"
+#include "StrokePreprocess.h"
 #include "StrokeMapping.h"
 
 #include <QAbstractSpinBox>
 #include <QApplication>
 #include <QClipboard>
+#include <QDateTime>
 #include <QComboBox>
 #include <QEvent>
 #include <QFileInfo>
@@ -22,6 +25,10 @@
 #include <QtConcurrent>
 #include <QVBoxLayout>
 #include <QWidget>
+
+#ifndef HANDWRITING_DEFAULT_SAMPLES_DIR
+#define HANDWRITING_DEFAULT_SAMPLES_DIR "samples"
+#endif
 
 MainWindow::MainWindow(ZinniaBackend* backend, QWidget* parent)
     : QMainWindow(parent), backend_(backend) {
@@ -52,6 +59,14 @@ MainWindow::MainWindow(ZinniaBackend* backend, QWidget* parent)
   modeCombo_->addItem(tr("Both"), static_cast<int>(RecognitionMode::Both));
   modeCombo_->setCurrentIndex(2);
 
+  expectedEdit_ = new QLineEdit(controlBar);
+  expectedEdit_->setPlaceholderText(tr("Intended character"));
+  expectedEdit_->setMaxLength(2);  // one character, possibly a surrogate pair
+  expectedEdit_->setFixedWidth(130);
+  saveSampleButton_ = new QPushButton(tr("Save sample"), controlBar);
+  saveSampleButton_->setToolTip(tr("Save the raw strokes with the intended character for offline evaluation"));
+  saveSampleButton_->setEnabled(false);
+
   auto* clearBtn = new QPushButton(tr("Clear"), controlBar);
   auto* undoBtn = new QPushButton(tr("Undo"), controlBar);
   copyButton_ = new QPushButton(tr("Copy"), controlBar);
@@ -62,6 +77,8 @@ MainWindow::MainWindow(ZinniaBackend* backend, QWidget* parent)
   controls->addWidget(undoBtn);
   controls->addWidget(clearBtn);
   controls->addWidget(copyButton_);
+  controls->addWidget(expectedEdit_);
+  controls->addWidget(saveSampleButton_);
   left->addWidget(controlBar, /*stretch*/ 0);
 
   diagnostics_ = new QLabel(leftColumn);
@@ -82,6 +99,9 @@ MainWindow::MainWindow(ZinniaBackend* backend, QWidget* parent)
   connect(modeCombo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
           &MainWindow::onStrokesChanged);
   connect(clearBtn, &QPushButton::clicked, this, &MainWindow::clearAll);
+  connect(saveSampleButton_, &QPushButton::clicked, this, &MainWindow::saveSample);
+  connect(expectedEdit_, &QLineEdit::returnPressed, this, &MainWindow::saveSample);
+  connect(expectedEdit_, &QLineEdit::textChanged, this, &MainWindow::updateSaveEnabled);
   connect(undoBtn, &QPushButton::clicked, this, &MainWindow::undoStroke);
   connect(copyButton_, &QPushButton::clicked, this, &MainWindow::copySelected);
   connect(candidates_, &CandidatePanel::selectionChanged, this, [this](const QString& ch) {
@@ -103,6 +123,26 @@ MainWindow::MainWindow(ZinniaBackend* backend, QWidget* parent)
     statusBar()->showMessage(canvas_->backendNote(), 15000);
   }
 }
+
+namespace {
+// Default measured with handwriting_eval on synthetic jittery ink (docs/findings.md).
+// Override with HANDWRITING_PREPROCESS (e.g. "none", "smooth:2", "resample:4+smooth:3").
+const stroke_preprocess::Options& preprocessOptions() {
+  static const stroke_preprocess::Options opts = []() {
+    stroke_preprocess::Options o;
+    QString spec = qEnvironmentVariable("HANDWRITING_PREPROCESS", QStringLiteral("resample:4+smooth:3"));
+    QString error;
+    if (!stroke_preprocess::parseSpec(spec, &o, &error)) {
+      qWarning("HANDWRITING_PREPROCESS: %s; using the default", qPrintable(error));
+      stroke_preprocess::parseSpec(QStringLiteral("resample:4+smooth:3"), &o);
+      spec = QStringLiteral("resample:4+smooth:3");
+    }
+    qInfo("stroke preprocessing: %s", qPrintable(spec));
+    return o;
+  }();
+  return opts;
+}
+}  // namespace
 
 RecognitionMode MainWindow::currentMode() const {
   return static_cast<RecognitionMode>(modeCombo_->currentData().toInt());
@@ -190,6 +230,40 @@ void MainWindow::clearAll() {
   updateDiagnostics(lastResult_);
 }
 
+void MainWindow::updateSaveEnabled() {
+  saveSampleButton_->setEnabled(!canvas_->strokes().isEmpty() &&
+                                !expectedEdit_->text().trimmed().isEmpty());
+}
+
+void MainWindow::saveSample() {
+  const QString expected = expectedEdit_->text().trimmed();
+  if (expected.isEmpty() || canvas_->strokes().isEmpty()) {
+    statusBar()->showMessage(tr("Type the intended character and draw something first."), 4000);
+    return;
+  }
+  Sample sample;
+  sample.character = expected;
+  sample.strokes = canvas_->strokes();
+  sample.surfaceWidth = canvas_->surfaceWidth();
+  sample.surfaceHeight = canvas_->surfaceHeight();
+  sample.source = canvas_->inputSourceLabel();
+
+  QString dir = qEnvironmentVariable("HANDWRITING_SAMPLES_DIR");
+  if (dir.isEmpty()) {
+    dir = QString::fromUtf8(HANDWRITING_DEFAULT_SAMPLES_DIR);
+  }
+  QString path;
+  QString error;
+  if (!sample_io::saveSample(dir, sample, &path, &error)) {
+    statusBar()->showMessage(tr("Could not save sample: %1").arg(error), 8000);
+    return;
+  }
+  statusBar()->showMessage(tr("Saved %1").arg(path), 5000);
+  clearAll();
+  expectedEdit_->selectAll();
+  canvas_->setFocus(Qt::OtherFocusReason);
+}
+
 void MainWindow::undoStroke() {
   canvas_->undoLastStroke();
 }
@@ -219,6 +293,7 @@ void MainWindow::updateDiagnostics(const RecognitionResult& result) {
 }
 
 void MainWindow::onStrokesChanged() {
+  updateSaveEnabled();
   runRecognition();
 }
 
@@ -236,7 +311,8 @@ void MainWindow::runRecognition() {
   const int w = canvas_->logicalWidth();
   const int h = canvas_->logicalHeight();
   // Crop to the ink and fit the recognizer canvas, so position/size on the surface do not matter.
-  const QVector<Stroke> strokes = stroke_mapping::fitToCanvas(rawStrokes, w, h);
+  const QVector<Stroke> strokes =
+      stroke_preprocess::apply(stroke_mapping::fitToCanvas(rawStrokes, w, h), preprocessOptions());
   ZinniaBackend* backend = backend_;
 
   auto* watcher = new QFutureWatcher<RecognitionResult>(this);

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "MtSlotTracker.h"
 #include "TrackpadSource.h"
 
 #include <QVector>
@@ -42,37 +43,16 @@ class EvdevTrackpadSource : public TrackpadSource {
     int pressureMax = 1;
   };
 
-  struct SlotState {
-    int trackingId = -1;
-    int x = 0;
-    int y = 0;
-    int toolType = 0;  // MT_TOOL_FINGER by default
-    int pressure = -1;
-    bool seen = false;
-  };
-
   static QVector<DeviceInfo> discoverDevices();
   bool openDevice(const DeviceInfo& info);
   void loadInitialSlots();
   void resyncAfterDrop();
   void deviceLost();
-  void handleSynReport();
-  void noteObservedSample(int x, int y);
-  void effectiveAbsRange(int* xMin, int* xMax, int* yMin, int* yMax) const;
 
   DeviceInfo chosen_;
   int fd_ = -1;
   QSocketNotifier* notifier_ = nullptr;
-  QVector<SlotState> slots_;
-  int currentSlot_ = 0;
-  bool dropping_ = false;  // discarding events until SYN_REPORT after SYN_DROPPED
+  MtSlotTracker tracker_;
   bool probed_ = false;
   bool probeOk_ = false;
-  // Many pads advertise ABS ranges larger than the glass. Learning the span
-  // that fingers actually use removes dead "out of bounds" margins.
-  int obsXMin_ = 0;
-  int obsXMax_ = 0;
-  int obsYMin_ = 0;
-  int obsYMax_ = 0;
-  bool hasObserved_ = false;
 };

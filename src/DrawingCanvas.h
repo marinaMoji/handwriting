@@ -26,6 +26,8 @@ class DrawingCanvas : public QWidget {
   int surfaceHeight() const { return 300; }
   QSize sizeHint() const override { return QSize(480, 300); }
   bool holdToWriteActive() const { return holdToWrite_; }
+  // "hold-to-write", "click-drag", "mixed" or empty if no strokes were drawn since Clear.
+  QString inputSourceLabel() const;
   QString backendNote() const { return backendNote_; }  // why a native backend was not used
 
  public slots:
@@ -86,6 +88,8 @@ class DrawingCanvas : public QWidget {
   QtTouchCapture* qtTouch_ = nullptr;  // same object as trackpadCapture_ when the Qt backend is used
   bool cursorFrozen_ = false;
   QString backendNote_;
+  bool usedHold_ = false;
+  bool usedClick_ = false;
   qreal padAspect_ = 1.6;      // physical pad width/height (learned from the device)
   bool padAspectFixed_ = false;  // HANDWRITING_PAD_ASPECT override
   QPointF trackpadFingerNormalized_{-1.0, -1.0};

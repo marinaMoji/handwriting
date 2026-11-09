@@ -17,6 +17,21 @@ bool testBit(int bit, const unsigned long* array) {
   return (array[bit / (8 * sizeof(unsigned long))] >> (bit % (8 * sizeof(unsigned long)))) & 1UL;
 }
 
+// The portable tracker mirrors these constants; make sure they cannot drift.
+static_assert(MtSlotTracker::kEvSyn == EV_SYN && MtSlotTracker::kEvAbs == EV_ABS, "EV_* mismatch");
+static_assert(MtSlotTracker::kSynReport == SYN_REPORT && MtSlotTracker::kSynDropped == SYN_DROPPED,
+              "SYN_* mismatch");
+static_assert(MtSlotTracker::kAbsMtSlot == ABS_MT_SLOT &&
+                  MtSlotTracker::kAbsMtPositionX == ABS_MT_POSITION_X &&
+                  MtSlotTracker::kAbsMtPositionY == ABS_MT_POSITION_Y &&
+                  MtSlotTracker::kAbsMtToolType == ABS_MT_TOOL_TYPE &&
+                  MtSlotTracker::kAbsMtTrackingId == ABS_MT_TRACKING_ID &&
+                  MtSlotTracker::kAbsMtPressure == ABS_MT_PRESSURE,
+              "ABS_MT_* mismatch");
+#ifdef MT_TOOL_PALM
+static_assert(MtSlotTracker::kToolPalm == MT_TOOL_PALM, "MT_TOOL_PALM mismatch");
+#endif
+
 }  // namespace
 
 EvdevTrackpadSource::EvdevTrackpadSource(QObject* parent) : TrackpadSource(parent) {
@@ -141,10 +156,18 @@ bool EvdevTrackpadSource::openDevice(const DeviceInfo& info) {
     reportProblem(tr("Could not take exclusive control of the touchpad (%1); the pointer will "
                      "move while you write.").arg(info.name));
   }
-  slots_.fill(SlotState{}, info.slotCount);
-  currentSlot_ = 0;
-  hasObserved_ = false;
-  obsXMin_ = obsXMax_ = obsYMin_ = obsYMax_ = 0;
+  MtSlotTracker::Config cfg;
+  cfg.absXMin = info.absXMin;
+  cfg.absXMax = info.absXMax;
+  cfg.absYMin = info.absYMin;
+  cfg.absYMax = info.absYMax;
+  cfg.slotCount = info.slotCount;
+  cfg.hasToolType = info.hasToolType;
+  cfg.hasPressure = info.hasPressure;
+  cfg.pressureMin = info.pressureMin;
+  cfg.pressureMax = info.pressureMax;
+  cfg.learnRange = true;
+  tracker_.configure(cfg);
 
   // Prefer physical aspect (device units / resolution) when both axes report it.
   qreal aspect = 0.0;
@@ -175,44 +198,41 @@ bool EvdevTrackpadSource::openDevice(const DeviceInfo& info) {
 }
 
 void EvdevTrackpadSource::loadInitialSlots() {
-  if (fd_ < 0 || slots_.isEmpty()) {
+  const int n = tracker_.slotCount();
+  if (fd_ < 0 || n <= 0) {
     return;
   }
   // EVIOCGMTSLOTS: __u32 code followed by one __s32 value per slot.
-  const int n = slots_.size();
   QByteArray buf(static_cast<int>(sizeof(__u32) + static_cast<size_t>(n) * sizeof(__s32)),
                  Qt::Uninitialized);
   auto* req = reinterpret_cast<__u32*>(buf.data());
 
-  auto readCode = [&](int code, auto apply) {
+  auto readCode = [&](quint16 code) {
     *req = static_cast<__u32>(code);
     if (ioctl(fd_, EVIOCGMTSLOTS(buf.size()), buf.data()) < 0) {
       return;
     }
     const __s32* values = reinterpret_cast<__s32*>(buf.data() + sizeof(__u32));
     for (int i = 0; i < n; ++i) {
-      apply(slots_[i], values[i]);
+      tracker_.setSlotValue(i, code, values[i]);
     }
   };
 
-  readCode(ABS_MT_TRACKING_ID, [](SlotState& s, __s32 v) {
-    s.trackingId = static_cast<int>(v);
-    s.seen = true;
-  });
-  readCode(ABS_MT_POSITION_X, [](SlotState& s, __s32 v) { s.x = static_cast<int>(v); });
-  readCode(ABS_MT_POSITION_Y, [](SlotState& s, __s32 v) { s.y = static_cast<int>(v); });
+  readCode(MtSlotTracker::kAbsMtTrackingId);
+  readCode(MtSlotTracker::kAbsMtPositionX);
+  readCode(MtSlotTracker::kAbsMtPositionY);
   if (chosen_.hasToolType) {
-    readCode(ABS_MT_TOOL_TYPE, [](SlotState& s, __s32 v) { s.toolType = static_cast<int>(v); });
+    readCode(MtSlotTracker::kAbsMtToolType);
   }
   if (chosen_.hasPressure) {
-    readCode(ABS_MT_PRESSURE, [](SlotState& s, __s32 v) { s.pressure = static_cast<int>(v); });
+    readCode(MtSlotTracker::kAbsMtPressure);
   }
 }
 
 void EvdevTrackpadSource::resyncAfterDrop() {
   qWarning("evdev: SYN_DROPPED — resyncing slots");
   loadInitialSlots();
-  handleSynReport();
+  processContacts(tracker_.contacts());
 }
 
 bool EvdevTrackpadSource::startBackend() {
@@ -244,9 +264,7 @@ void EvdevTrackpadSource::stopBackend() {
     ::close(fd_);
     fd_ = -1;
   }
-  slots_.clear();
-  currentSlot_ = 0;
-  dropping_ = false;
+  tracker_.reset();
 }
 
 void EvdevTrackpadSource::deviceLost() {
@@ -261,8 +279,7 @@ void EvdevTrackpadSource::deviceLost() {
     ::close(fd_);
     fd_ = -1;
   }
-  slots_.clear();
-  dropping_ = false;
+  tracker_.reset();
   // Force a re-probe the next time the key is held (the pad may be back, or another one).
   probed_ = false;
   probeOk_ = false;
@@ -291,132 +308,17 @@ void EvdevTrackpadSource::onReadable() {
       break;
     }
 
-    // Kernel rule: after SYN_DROPPED discard everything up to the next SYN_REPORT, then
-    // re-read the full device state.
-    if (ev.type == EV_SYN && ev.code == SYN_DROPPED) {
-      dropping_ = true;
-      continue;
-    }
-    if (dropping_) {
-      if (ev.type == EV_SYN && ev.code == SYN_REPORT) {
-        dropping_ = false;
+    // SYN_DROPPED handling and slot bookkeeping live in the portable tracker.
+    QVector<TrackpadContact> frame;
+    switch (tracker_.feed(ev.type, ev.code, ev.value, &frame)) {
+      case MtSlotTracker::Result::Frame:
+        processContacts(frame);
+        break;
+      case MtSlotTracker::Result::NeedsResync:
         resyncAfterDrop();
-      }
-      continue;
-    }
-
-    if (ev.type == EV_ABS) {
-      if (ev.code == ABS_MT_SLOT) {
-        currentSlot_ = qBound(0, static_cast<int>(ev.value), slots_.size() - 1);
-        continue;
-      }
-      if (slots_.isEmpty()) {
-        continue;
-      }
-      SlotState& slot = slots_[currentSlot_];
-      switch (ev.code) {
-        case ABS_MT_TRACKING_ID:
-          slot.trackingId = static_cast<int>(ev.value);
-          slot.seen = true;
-          break;
-        case ABS_MT_POSITION_X:
-          slot.x = static_cast<int>(ev.value);
-          slot.seen = true;
-          break;
-        case ABS_MT_POSITION_Y:
-          slot.y = static_cast<int>(ev.value);
-          slot.seen = true;
-          break;
-        case ABS_MT_TOOL_TYPE:
-          slot.toolType = static_cast<int>(ev.value);
-          break;
-        case ABS_MT_PRESSURE:
-          slot.pressure = static_cast<int>(ev.value);
-          break;
-        default:
-          break;
-      }
-    } else if (ev.type == EV_SYN && ev.code == SYN_REPORT) {
-      handleSynReport();
+        break;
+      case MtSlotTracker::Result::None:
+        break;
     }
   }
-}
-
-void EvdevTrackpadSource::noteObservedSample(int x, int y) {
-  if (!hasObserved_) {
-    obsXMin_ = obsXMax_ = x;
-    obsYMin_ = obsYMax_ = y;
-    hasObserved_ = true;
-    return;
-  }
-  obsXMin_ = qMin(obsXMin_, x);
-  obsXMax_ = qMax(obsXMax_, x);
-  obsYMin_ = qMin(obsYMin_, y);
-  obsYMax_ = qMax(obsYMax_, y);
-}
-
-void EvdevTrackpadSource::effectiveAbsRange(int* xMin, int* xMax, int* yMin, int* yMax) const {
-  *xMin = chosen_.absXMin;
-  *xMax = chosen_.absXMax;
-  *yMin = chosen_.absYMin;
-  *yMax = chosen_.absYMax;
-  if (!hasObserved_) {
-    return;
-  }
-  const int absSpanX = qMax(1, chosen_.absXMax - chosen_.absXMin);
-  const int absSpanY = qMax(1, chosen_.absYMax - chosen_.absYMin);
-  const int obsSpanX = obsXMax_ - obsXMin_;
-  const int obsSpanY = obsYMax_ - obsYMin_;
-  // Wait until the finger has covered a meaningful fraction of the advertised
-  // range so a single corner tap does not shrink the map to a point.
-  if (obsSpanX < absSpanX / 5 || obsSpanY < absSpanY / 5) {
-    return;
-  }
-  // Small padding so the finger can still reach the last millimetre of glass.
-  const int padX = qMax(1, obsSpanX / 50);
-  const int padY = qMax(1, obsSpanY / 50);
-  *xMin = qMax(chosen_.absXMin, obsXMin_ - padX);
-  *xMax = qMin(chosen_.absXMax, obsXMax_ + padX);
-  *yMin = qMax(chosen_.absYMin, obsYMin_ - padY);
-  *yMax = qMin(chosen_.absYMax, obsYMax_ + padY);
-  if (*xMax <= *xMin || *yMax <= *yMin) {
-    *xMin = chosen_.absXMin;
-    *xMax = chosen_.absXMax;
-    *yMin = chosen_.absYMin;
-    *yMax = chosen_.absYMax;
-  }
-}
-
-void EvdevTrackpadSource::handleSynReport() {
-  QVector<TrackpadContact> contacts;
-  for (const SlotState& slot : slots_) {
-    if (slot.trackingId < 0) {
-      continue;
-    }
-#ifdef MT_TOOL_PALM
-    if (chosen_.hasToolType && slot.toolType == MT_TOOL_PALM) {
-      continue;
-    }
-#endif
-    // Skip near-zero pressure contacts when the device reports pressure.
-    if (chosen_.hasPressure && slot.pressure >= 0) {
-      const int span = qMax(1, chosen_.pressureMax - chosen_.pressureMin);
-      const qreal norm = static_cast<qreal>(slot.pressure - chosen_.pressureMin) / span;
-      if (norm < 0.05) {
-        continue;
-      }
-    }
-    noteObservedSample(slot.x, slot.y);
-    TrackpadContact c;
-    c.identifier = slot.trackingId;
-    int xMin = 0, xMax = 1, yMin = 0, yMax = 1;
-    effectiveAbsRange(&xMin, &xMax, &yMin, &yMax);
-    const qreal xSpan = qMax(1, xMax - xMin);
-    const qreal ySpan = qMax(1, yMax - yMin);
-    const qreal nx = (slot.x - xMin) / xSpan;
-    const qreal ny = (slot.y - yMin) / ySpan;
-    c.normalized = QPointF(qBound<qreal>(0.0, nx, 1.0), qBound<qreal>(0.0, ny, 1.0));
-    contacts.push_back(c);
-  }
-  processContacts(contacts);
 }

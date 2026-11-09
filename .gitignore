@@ -8,6 +8,9 @@
 /models/*.meta
 /models_dl/
 
+# Locally collected handwriting samples (your own data; see tests/ for fixtures)
+/samples/*.json
+
 # Editor / OS
 .DS_Store
 *.user

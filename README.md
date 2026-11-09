@@ -153,6 +153,13 @@ macOS absolute input uses public AppKit APIs only. Linux needs device-node permi
 - Dual-model “Both” mode with provenance (no cross-model score calibration)
 - Latency and candidate ranking for a later go/no-go decision
 
+## Evaluation and tests
+
+- **Save sample**: type the character you meant in the "Expected" box and press *Save sample*. Ink is stored as JSON in `samples/` (override with `HANDWRITING_SAMPLES_DIR`).
+- **Replay**: `./build/handwriting_eval --samples samples --models models --modes ja,tw,both --variants raw,fit` prints top-1/5/10, MRR and latency. `--synthetic N` adds generated ink; see `--help` options (`--misses`, `--csv`, ...).
+- **Preprocessing**: strokes are resampled and smoothed before recognition (default `resample:4+smooth:3`). Override with `HANDWRITING_PREPROCESS`, e.g. `none`, `rdp:3`, `smooth:2`.
+- **Unit tests**: `ctest --test-dir build` runs stroke mapping, trackpad source, PTP frame assembly, stroke preprocessing, sample I/O and the Linux slot tracker (`MtSlotTracker`, testable on any OS).
+
 ## Out of scope
 
 IME integration, dictionaries, OpenCC / variant reranking.

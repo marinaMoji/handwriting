@@ -32,6 +32,7 @@ endif()
 # --- Shared recognition backend ----------------------------------------------
 add_library(handwriting_backend STATIC
   src/ZinniaBackend.cpp
+  src/SampleIO.cpp
 )
 set_target_properties(handwriting_backend PROPERTIES AUTOMOC OFF AUTOUIC OFF AUTORCC OFF)
 target_include_directories(handwriting_backend PUBLIC
@@ -71,6 +72,7 @@ elseif(WIN32)
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   list(APPEND HANDWRITING_APP_SOURCES
     src/linux/EvdevTrackpadSource.cpp
+    src/MtSlotTracker.cpp
   )
 endif()
 
@@ -98,6 +100,7 @@ target_compile_definitions(handwriting_smoke PRIVATE
 )
 target_compile_definitions(handwriting_app PRIVATE
   HANDWRITING_DEFAULT_MODEL_DIR="${CMAKE_CURRENT_SOURCE_DIR}/models"
+  HANDWRITING_DEFAULT_SAMPLES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/samples"
 )
 
 # --- Unit tests (pure mapping / jump logic) ----------------------------------
@@ -124,3 +127,36 @@ add_executable(ptp_frame_test
 target_include_directories(ptp_frame_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(ptp_frame_test PRIVATE Qt6::Core)
 add_test(NAME ptp_frame_test COMMAND ptp_frame_test)
+
+add_executable(stroke_preprocess_test
+  tests/stroke_preprocess_test.cpp
+)
+target_include_directories(stroke_preprocess_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_libraries(stroke_preprocess_test PRIVATE Qt6::Core handwriting_backend)
+add_test(NAME stroke_preprocess_test COMMAND stroke_preprocess_test)
+
+add_executable(sample_io_test
+  tests/sample_io_test.cpp
+)
+target_include_directories(sample_io_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_libraries(sample_io_test PRIVATE Qt6::Core handwriting_backend)
+add_test(NAME sample_io_test COMMAND sample_io_test)
+
+# --- Offline evaluation tool -------------------------------------------------
+add_executable(handwriting_eval
+  src/eval_main.cpp
+)
+target_include_directories(handwriting_eval PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_libraries(handwriting_eval PRIVATE handwriting_backend)
+target_compile_definitions(handwriting_eval PRIVATE
+  HANDWRITING_DEFAULT_MODEL_DIR="${CMAKE_CURRENT_SOURCE_DIR}/models"
+  HANDWRITING_DEFAULT_SAMPLES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/samples"
+)
+
+add_executable(mt_slot_tracker_test
+  tests/mt_slot_tracker_test.cpp
+  src/MtSlotTracker.cpp
+)
+target_include_directories(mt_slot_tracker_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_libraries(mt_slot_tracker_test PRIVATE Qt6::Core)
+add_test(NAME mt_slot_tracker_test COMMAND mt_slot_tracker_test)

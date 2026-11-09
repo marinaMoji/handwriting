@@ -70,6 +70,8 @@ bool DrawingCanvas::absoluteTrackpadDriving() const {
 }
 
 void DrawingCanvas::clearStrokes() {
+  usedHold_ = false;
+  usedClick_ = false;
   holdStrokeIdleTimer_->stop();
   strokes_.clear();
   currentStroke_.clear();
@@ -116,6 +118,16 @@ void DrawingCanvas::beginHoldToWrite() {
 
 DrawingCanvas::~DrawingCanvas() {
   setCursorFrozen(false);
+}
+
+QString DrawingCanvas::inputSourceLabel() const {
+  if (usedHold_ && usedClick_) {
+    return QStringLiteral("mixed");
+  }
+  if (usedHold_) {
+    return QStringLiteral("hold-to-write");
+  }
+  return usedClick_ ? QStringLiteral("click-drag") : QString();
 }
 
 void DrawingCanvas::setCursorFrozen(bool frozen) {
@@ -222,6 +234,7 @@ StrokePoint DrawingCanvas::fromNormalizedTrackpad(QPointF normalized) const {
 }
 
 void DrawingCanvas::startStroke(const StrokePoint& point, DrawSource source) {
+  (source == DrawSource::ClickDrag ? usedClick_ : usedHold_) = true;
   holdStrokeIdleTimer_->stop();
   cursorStroke_ = false;
   drawSource_ = source;

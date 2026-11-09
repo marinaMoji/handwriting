@@ -8,6 +8,7 @@ class DrawingCanvas;
 class CandidatePanel;
 class QComboBox;
 class QLabel;
+class QLineEdit;
 class QPushButton;
 
 class MainWindow : public QMainWindow {
@@ -25,6 +26,8 @@ class MainWindow : public QMainWindow {
   void copySelected();
   void clearAll();
   void undoStroke();
+  void saveSample();
+  void updateSaveEnabled();
   void onHoldToWriteChanged(bool active);
   void onApplicationStateChanged(Qt::ApplicationState state);
 
@@ -40,6 +43,8 @@ class MainWindow : public QMainWindow {
   QComboBox* modeCombo_ = nullptr;
   QLabel* diagnostics_ = nullptr;
   QPushButton* copyButton_ = nullptr;
+  QLineEdit* expectedEdit_ = nullptr;
+  QPushButton* saveSampleButton_ = nullptr;
   int recognitionGeneration_ = 0;
   RecognitionResult lastResult_{};
 };
