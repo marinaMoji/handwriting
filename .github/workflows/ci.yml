@@ -18,7 +18,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install Qt (macOS, Homebrew)
+        if: runner.os == 'macOS'
+        run: |
+          brew install qt
+          echo "CMAKE_PREFIX_PATH=$(brew --prefix qt)" >> "$GITHUB_ENV"
+
       - name: Install Qt
+        if: runner.os != 'macOS'
         uses: jurplel/install-qt-action@v4
         with:
           version: 6.8.*

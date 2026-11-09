@@ -13,6 +13,7 @@
 #define NOMINMAX
 #endif
 #include <windows.h>
+#include <hidusage.h>
 #include <hidpi.h>
 #include <hidsdi.h>
 
