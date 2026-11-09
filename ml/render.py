@@ -6,7 +6,6 @@ to the two nearest of 8 direction bins). Stroke order and count are not represen
 import math
 
 import numpy as np
-from PIL import Image, ImageDraw
 
 CANVAS = 300  # same canvas the C++ pipeline fits to
 NUM_CHANNELS = 9
@@ -33,35 +32,82 @@ def fit_to_canvas(strokes, canvas=CANVAS, margin=24, max_scale=4.0):
     return [np.clip((s - c) * scale + canvas / 2.0, 0, canvas - 1) for s in strokes]
 
 
-def render(strokes, size=64, width=1.8, ss=2):
-    """strokes: list of (N,2) arrays already in the 300x300 canvas. Returns uint8 (9, size, size)."""
-    big = size * ss
-    k = big / CANVAS
-    w = max(1, int(round(width * ss)))
-    imgs = [Image.new("L", (big, big), 0) for _ in range(NUM_CHANNELS)]
-    draws = [ImageDraw.Draw(i) for i in imgs]
+GRID = 64
+SPACING = 0.5      # grid pixels between splatted points
+OFFSETS = range(-2, 3)
+
+
+def _resample(stroke, spacing):
+    """Points along a stroke at (at most) `spacing` apart, endpoints included."""
+    seg = np.hypot(*(stroke[1:] - stroke[:-1]).T) if len(stroke) > 1 else np.zeros(0)
+    total = float(seg.sum())
+    if total < 1e-6:
+        return stroke[:1].astype(np.float64)
+    m = max(2, int(math.ceil(total / spacing)) + 1)
+    arc = np.concatenate([[0.0], np.cumsum(seg)])
+    t = np.linspace(0.0, total, m)
+    return np.stack([np.interp(t, arc, stroke[:, 0]), np.interp(t, arc, stroke[:, 1])], axis=1)
+
+
+def render(strokes, size=GRID, width=1.8):
+    """Order-free 9-channel render by dense point splatting. strokes are in the 300 canvas.
+
+    Spec shared with the C++ port (src/InkRender.cpp):
+      * scale 300 -> size; resample every stroke every <= 0.5 grid px (endpoints kept)
+      * each point splats a tent kernel of radius R = width/2 + 0.5 onto pixel centres
+        (ix + 0.5, iy + 0.5); weight g = 0.5 / R keeps a line's centre near 1
+      * channel 0 gets the ink; the segment direction (to the next point, the last point uses
+        the previous segment) is quantised to 8 bins and split between the two nearest bins
+      * values saturate at 1 and are stored as round(255 * v)
+    Returns uint8 (9, size, size).
+    """
+    k = size / CANVAS
+    R = width / 2.0 + 0.5
+    g = SPACING / R
+    xs, ys, chans, vals = [], [], [], []
+    pts_all, ink_only = [], []
     for s in strokes:
         if len(s) == 0:
             continue
-        p = s * k
+        p = _resample(np.asarray(s, dtype=np.float64) * k, SPACING)
         if len(p) == 1:
-            x, y = p[0]
-            draws[0].ellipse([x - w / 2, y - w / 2, x + w / 2, y + w / 2], fill=255)
+            pts_all.append((p, None))
             continue
-        for a, b in zip(p[:-1], p[1:]):
-            dx, dy = b[0] - a[0], b[1] - a[1]
-            if dx == 0 and dy == 0:
-                continue
-            xy = [float(a[0]), float(a[1]), float(b[0]), float(b[1])]
-            draws[0].line(xy, fill=255, width=w)
-            t = (math.atan2(dy, dx) % (2 * math.pi)) / (math.pi / 4)
-            b0 = int(t) % 8
-            f = t - int(t)
-            for bi, wt in ((b0, 1 - f), ((b0 + 1) % 8, f)):
-                if wt > 0.05:
-                    draws[1 + bi].line(xy, fill=int(255 * wt), width=w)
-    out = np.stack([np.asarray(i.reduce(ss), dtype=np.uint8) for i in imgs])
-    return out
+        d = np.empty_like(p)
+        d[:-1] = p[1:] - p[:-1]
+        d[-1] = d[-2]
+        theta = np.arctan2(d[:, 1], d[:, 0]) % (2 * math.pi)
+        t = theta / (math.pi / 4)
+        b0 = np.floor(t).astype(np.int64)
+        f = t - b0
+        pts_all.append((p, (b0 % 8, f)))
+    parts_idx, parts_val = [], []
+    for p, dirinfo in pts_all:
+        x, y = p[:, 0], p[:, 1]
+        ix0, iy0 = np.floor(x).astype(np.int64), np.floor(y).astype(np.int64)
+        for oy in OFFSETS:
+            for ox in OFFSETS:
+                ix, iy = ix0 + ox, iy0 + oy
+                d = np.hypot(ix + 0.5 - x, iy + 0.5 - y)
+                w = np.maximum(0.0, 1.0 - d / R) * g
+                ok = (w > 0) & (ix >= 0) & (ix < size) & (iy >= 0) & (iy < size)
+                if not ok.any():
+                    continue
+                pix = (iy * size + ix)[ok]
+                wv = w[ok]
+                parts_idx.append(pix)
+                parts_val.append(wv)
+                if dirinfo is not None:
+                    b, f = dirinfo
+                    parts_idx.append(((1 + b[ok]) * size * size) + pix)
+                    parts_val.append(wv * (1 - f[ok]))
+                    parts_idx.append(((1 + (b[ok] + 1) % 8) * size * size) + pix)
+                    parts_val.append(wv * f[ok])
+    acc = np.zeros(NUM_CHANNELS * size * size)
+    if parts_idx:
+        acc = np.bincount(np.concatenate(parts_idx), weights=np.concatenate(parts_val),
+                          minlength=NUM_CHANNELS * size * size)
+    return np.rint(np.minimum(acc, 1.0) * 255).astype(np.uint8).reshape(NUM_CHANNELS, size, size)
 
 
 def prepare_sample(strokes, size=64, width=1.8):
