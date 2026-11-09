@@ -203,3 +203,8 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   add_test(NAME evdev_uinput_test COMMAND evdev_uinput_test)
   set_tests_properties(evdev_uinput_test PROPERTIES SKIP_RETURN_CODE 77)
 endif()
+
+add_executable(stroke_variants_test tests/stroke_variants_test.cpp)
+target_include_directories(stroke_variants_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_libraries(stroke_variants_test PRIVATE handwriting_backend)
+add_test(NAME stroke_variants_test COMMAND stroke_variants_test)

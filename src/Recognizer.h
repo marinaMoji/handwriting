@@ -2,6 +2,7 @@
 
 #include "Fusion.h"
 #include "StrokePreprocess.h"
+#include "StrokeVariants.h"
 #include "ZinniaBackend.h"
 
 // The single recognition pipeline shared by the app, the eval tool and the CLI:
@@ -18,14 +19,20 @@ class Recognizer {
     // "Both" mode: how the ja and tw lists are merged. Interleave is the original behaviour.
     fusion::Method fusion = fusion::Method::Interleave;
     fusion::Params fusionParams;
+    // Stroke order/count tolerance: also try reordered/merged/split readings of the ink and
+    // keep each character's best score (minus tolerancePenalty for non-original readings).
+    stroke_variants::Options tolerance;
+    double tolerancePenalty = 0.1;
     int fusionDepth = 20;  // candidates fetched from each model before fusing
     stroke_preprocess::Options preprocess;
   };
 
-  static constexpr const char* kDefaultPreprocessSpec = "resample:4+smooth:3";
+  static constexpr const char* kDefaultPreprocessSpec = "resample:4+smooth:3@merge+split";
 
   // Default options (fit + default preprocessing).
   static Options defaultOptions();
+  // Spec grammar: PREPROCESS[@tol] where tol is a '+'-joined subset of swap, merge, split
+  // (e.g. "resample:4+smooth:3@merge+split"). A spec without '@' turns tolerance off.
   // Default options with a preprocessing spec ("none", "rdp:3", "resample:4+smooth:3", ...).
   static bool optionsFromSpec(const QString& spec, Options* out, QString* error = nullptr);
 

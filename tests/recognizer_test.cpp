@@ -67,6 +67,17 @@ int main(int argc, char** argv) {
     expect(!Recognizer::optionsFromSpec(QStringLiteral("bogus:1"), &o, &err) && !err.isEmpty(),
            "bad spec is rejected with an error");
     expect(!Recognizer::defaultOptions().preprocess.isNone(), "default preprocessing is on");
+    expect(Recognizer::defaultOptions().tolerance.merge && Recognizer::defaultOptions().tolerance.split &&
+               !Recognizer::defaultOptions().tolerance.swap,
+           "default tolerance is merge+split");
+    expect(Recognizer::optionsFromSpec(QStringLiteral("resample:4+smooth:3"), &o) && !o.tolerance.any(),
+           "a spec without @ has no tolerance");
+    expect(Recognizer::optionsFromSpec(QString::fromLatin1(Recognizer::kDefaultPreprocessSpec), &o) &&
+               o.tolerance.merge && o.tolerance.split,
+           "the default spec string round-trips");
+    expect(Recognizer::optionsFromSpec(QStringLiteral("none@swap"), &o) && o.tolerance.swap && o.preprocess.isNone(),
+           "tolerance suffix parses");
+    expect(!Recognizer::optionsFromSpec(QStringLiteral("none@bogus"), &o), "bad tolerance is rejected");
   }
 
   // Empty input does not crash.

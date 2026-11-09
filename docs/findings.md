@@ -53,3 +53,24 @@ Ink generated from KanjiVG stroke paths (CC BY-SA 3.0, fetched by `scripts/fetch
 **Both-mode fusion.** Compared interleave, reciprocal rank fusion, max score, per-list z-score and per-model bias on 300 random characters and on 51 traditional-form characters (x5). All score-based methods landed within noise of interleave (for example traditional forms, top-1: ja 86.7, tw 82.0, interleave 86.7, rrf 87.5, z 86.7). RRF lowers top-1 on the random set (64.3 vs 81.7) because it breaks ties unpredictably. Interleave stays the default; the `fusion` options in `Recognizer` remain available. A real decision needs traditional-form samples written by hand (issue #9), since synthetic Japanese-form ink cannot show a difference.
 
 **Tooling.** `scripts/check_eval_gate.py` enforces `tests/eval_thresholds.json` in CI. CI numbers differ slightly from local ones because the C++ standard libraries implement the random distributions differently; the thresholds sit several points below both.
+
+## Real samples and stroke-order/count tolerance (2026-11-09, issue #13)
+
+First 206 real trackpad samples (dev set, one writer). Compared with KanjiVG's stroke data, 55 of them differ in stroke order or count (`scripts/check_stroke_order.py`). The recognizer handles those badly: Japanese-model top-1 was 67% for matching samples, 37% when the order differed and 22% when the count differed. Real writing is also below the synthetic benchmark (about 80%) even when the order matches.
+
+Tolerance tries extra readings of the ink and keeps each character's best score: **merge** joins two consecutive strokes whose gap is small, **split** cuts a stroke at its sharpest corner, **swap** exchanges adjacent strokes. Extra readings are penalised by 0.1 so the original wins ties.
+
+Tuned on characters with an even code point (half A, 102 samples), checked on odd (half B, 112, untouched while tuning). Japanese model, baseline -> merge+split:
+
+| Half | top-1 | top-5 | top-10 |
+|---|---|---|---|
+| A (tuned) | 56.9 -> 63.7 | 67.6 -> 79.4 | 75.5 -> 83.3 |
+| B (held out) | 57.1 -> 62.5 | 65.2 -> 75.9 | 69.6 -> 79.5 |
+| B, Both mode | 57.1 -> 62.5 | 69.6 -> 80.4 | 72.3 -> 84.8 |
+| B, matching-order samples only | 64.4 -> 72.2 | 72.2 -> 83.3 | 76.7 -> 84.4 |
+
+- Without a penalty, clean samples lost 2-12 points of top-1 because wrong readings sometimes outscored the right one. A penalty of 0.1 removes that; larger penalties lose the gains.
+- Swap adds a few points of top-10 but costs 4x the latency (about 220 ms Japanese, 645 ms Both) and was not adopted.
+- Latency of the default (merge+split): about 55 ms Japanese, 160 ms Both, run in the background.
+- No regression on the KanjiVG synthetic set (top-1 71.4 -> 71.0, top-5 +5).
+- Caveats: one writer, 206 samples, so this is a measured improvement but still small-sample. The held-out set (#18) is the real check. Defaults can be changed with `HANDWRITING_PREPROCESS` (a spec without `@` disables tolerance, for example `resample:4+smooth:3`).

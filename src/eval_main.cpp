@@ -78,6 +78,8 @@ int main(int argc, char** argv) {
   QString csvPath, saveSyntheticDir, kvgPath, kvgChars;
   int kvgMax = 0;
   unsigned seed = 1234;
+  double tolPenalty = 0.0;
+  int charSplit = -1;  // 0/1: keep only samples whose first code point is even/odd
   int synthetic = 0;
   double noise = 1.0;
   double step = 2.5;
@@ -108,6 +110,8 @@ int main(int argc, char** argv) {
     else if (a == QLatin1String("--kanjivg")) kvgPath = next();
     else if (a == QLatin1String("--kvg-chars")) kvgChars = next();
     else if (a == QLatin1String("--kvg-max")) kvgMax = next().toInt();
+    else if (a == QLatin1String("--tol-penalty")) tolPenalty = next().toDouble();
+    else if (a == QLatin1String("--char-split")) charSplit = next().toInt();
     else if (a == QLatin1String("--seed")) seed = next().toUInt();
     else if (a == QLatin1String("--misses")) showMisses = true;
     else if (a == QLatin1String("--noise")) noise = next().toDouble();
@@ -120,6 +124,7 @@ int main(int argc, char** argv) {
              "       [--modes ja,tw,both] [--variants raw,none,rdp:3,smooth:2+rdp:3]\n"
              "       [--misses] [--csv FILE] [--save-synthetic DIR]\n"
              "       [--fusions interleave,rrf,max,z,cal] [--rrf-k K] [--ja-bias B] [--tw-bias B]\n"
+             "       [--tol-penalty P] [--char-split 0|1]   (variants may end in @swap+merge+split)\n"
              "       [--kanjivg FILE [--kvg-chars STR] [--kvg-max N]] [--seed N]\n";
       return 0;
     } else {
@@ -136,9 +141,9 @@ int main(int argc, char** argv) {
     }
   }
   for (const QString& v : variants) {
-    stroke_preprocess::Options o;
+    Recognizer::Options o;
     QString e;
-    if (v != QLatin1String("raw") && !stroke_preprocess::parseSpec(v, &o, &e)) {
+    if (v != QLatin1String("raw") && !Recognizer::optionsFromSpec(v, &o, &e)) {
       err << "bad variant '" << v << "': " << e << "\n";
       return 2;
     }
@@ -161,6 +166,14 @@ int main(int argc, char** argv) {
     QString e;
     if (sample_io::loadSample(f, &s, &e)) samples.push_back(s);
     else { ++skipped; err << "skip " << f << ": " << e << "\n"; }
+  }
+  if (charSplit == 0 || charSplit == 1) {
+    QVector<Sample> kept;
+    for (const Sample& s : samples) {
+      const QList<uint> cps = s.character.toUcs4();
+      if (!cps.isEmpty() && static_cast<int>(cps[0] % 2) == charSplit) kept.push_back(s);
+    }
+    samples = kept;
   }
   const int realCount = samples.size();
   if (!kvgPath.isEmpty() && synthetic <= 0) synthetic = 1;
@@ -239,6 +252,7 @@ int main(int argc, char** argv) {
     for (const QString& m : rows) {
       Stats st;
       Recognizer::Options ropts = optionsFor(variant);
+      ropts.tolerancePenalty = tolPenalty;
       if (m.startsWith(QLatin1String("both/"))) {
         fusion::parse(m.mid(5), &ropts.fusion);
         ropts.fusionParams = fparams;
