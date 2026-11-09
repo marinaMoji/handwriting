@@ -70,8 +70,12 @@ int main(int argc, char** argv) {
     expect(Recognizer::defaultOptions().tolerance.merge && Recognizer::defaultOptions().tolerance.split &&
                !Recognizer::defaultOptions().tolerance.swap,
            "default tolerance is merge+split");
-    expect(Recognizer::optionsFromSpec(QStringLiteral("resample:4+smooth:3"), &o) && !o.tolerance.any(),
-           "a spec without @ has no tolerance");
+    expect(Recognizer::optionsFromSpec(QStringLiteral("resample:4+smooth:3"), &o) && !o.tolerance.any() &&
+               o.countWeight == 0.0,
+           "a spec without @ has no tolerance and no count prior");
+    expect(Recognizer::defaultOptions().countWeight > 0.0, "default has the stroke-count prior");
+    expect(Recognizer::optionsFromSpec(QStringLiteral("none@count"), &o) && o.countWeight > 0.0 && !o.tolerance.any(),
+           "@count enables only the prior");
     expect(Recognizer::optionsFromSpec(QString::fromLatin1(Recognizer::kDefaultPreprocessSpec), &o) &&
                o.tolerance.merge && o.tolerance.split,
            "the default spec string round-trips");

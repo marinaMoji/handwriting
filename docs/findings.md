@@ -90,3 +90,11 @@ Tuned on characters with an even code point (half A, 102 samples), checked on od
 | Historical / rare | 50% |
 
 Complex characters do best: many strokes constrain the answer. Simple ones do worst, and the errors are confusable neighbours (二→こ, 大→丈, 口→日, 上→土, 十→4, 日→曰) or kana/ASCII (オ, う, 4) outranking the kanji; most of these have the right answer at rank 2-5 (top-5 is 79%). So the headroom is ranking, not recall: the gap between top-1 and top-5 is about 14 points. A ranking signal that does not depend on stroke order (stroke-count prior, shape) is the next lever; Zinnia's own scores cannot separate these. Traditional forms and rare characters are weak partly because they are rarer in Zinnia's training data.
+
+## Stroke-count prior (2026-11-09, issue #13 follow-up)
+
+After the recognizer proposes candidates, each one is penalised by `0.15` per stroke that its expected count (Unihan `kTotalStrokes`, license: Unicode v3) differs from the written count by more than 1. It is applied to each reading (original, merged, split) using that reading's own stroke count, so merge/split and the prior work together. Kana and ASCII have no count and are left alone. Unihan agrees with KanjiVG on 89% of kanji (mostly off by one when it differs), which is why a band of 1 is free.
+
+Sweep on half A (even code points), Japanese model: baseline 65.7 / 80.4 top-1 / top-5; best settings 67.6 / 82.4-83.3. A band of 1 and weight 0.1-0.4 sits on a flat plateau (band 0 and band 2 are slightly worse). Check on half B: 65.2 / 77.7 -> 66.1 / 79.5 (ja) and top-5 82.1 -> 83.0 (Both). Over all 214: ja top-1 65.4 -> 66.8, top-5 79.0 -> 80.8; Both top-5 83.6 -> 84.1. KanjiVG synthetic: top-1 76.7 -> 77.7, nothing worse.
+
+This is a real but small gain (about 3 samples of 214 at top-1), as expected: most confusable pairs (大/丈, 己/巳) have the same stroke count. Top-5 remains about 80% Japanese-only and 84% in Both mode, just under the 85% soft floor. The held-out set (#18) still has to confirm.

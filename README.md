@@ -174,7 +174,7 @@ python3 scripts/check_stroke_order.py           # flag samples whose stroke orde
 ./build/handwriting_recognize --mode both --top 5 samples/U+5B66_*.json     # one-off recognition of saved samples
 ```
 
-`handwriting_eval` prints top-1/5/10, MRR and latency per variant and mode. A variant is a preprocessing spec optionally followed by `@swap`, `@merge`, `@split` (stroke-order/count tolerance, see below); `raw` skips crop/fit and preprocessing. Useful options: `--misses`, `--csv FILE`, `--fusions interleave,rrf,max,z,cal` (Both-mode merging), `--tol-penalty P`, `--char-split 0|1` (tune on even code points, check on odd), `--keep-specks`.
+`handwriting_eval` prints top-1/5/10, MRR and latency per variant and mode. A variant is a preprocessing spec optionally followed by `@swap`, `@merge`, `@split` (stroke-order/count tolerance, see below); `raw` skips crop/fit and preprocessing. Useful options: `--misses`, `--csv FILE`, `--fusions interleave,rrf,max,z,cal` (Both-mode merging), `--tol-penalty P`, `--count-weight W --count-band B`, `--char-split 0|1` (tune on even code points, check on odd), `--keep-specks`.
 
 ### Synthetic corpus from KanjiVG
 
@@ -194,14 +194,14 @@ One shared path (`Recognizer`, used by the app, `handwriting_eval` and `handwrit
 1. Drop specks (no-length taps, edge/palm contacts; also dropped at capture).
 2. Crop to the ink and fit the 300x300 recognizer canvas.
 3. Preprocess: resample + smooth. Override with `HANDWRITING_PREPROCESS`, e.g. `none`, `rdp:3`, `smooth:2`.
-4. Run the model(s). The default spec `resample:4+smooth:3@merge+split` also tries merged and split stroke readings (stroke-order/count tolerance) and keeps each character's best score; a spec without `@` turns that off, `@swap` adds adjacent-stroke swaps (slower, not worth it so far).
+4. Run the model(s). The default spec `resample:4+smooth:3@merge+split+count` also tries merged and split stroke readings (stroke-order/count tolerance), keeps each character's best score, and adds a soft stroke-count prior (candidates whose expected stroke count is more than 1 away from the written count are penalised). A spec without `@` turns all of that off; `@swap` adds adjacent-stroke swaps (slower, not worth it so far).
 5. In Both mode, merge the Japanese and Traditional lists (default: interleave).
 
 Measurements and caveats are in [docs/findings.md](docs/findings.md).
 
 ### Tests
 
-`ctest --test-dir build` runs: stroke mapping, trackpad source, PTP frame assembly, stroke preprocessing, stroke variants, sample I/O, the Linux slot tracker (`MtSlotTracker`, testable on any OS), `Recognizer`, fusion, KanjiVG parsing, and (on Linux) the evdev fixture below. CI (`.github/workflows/ci.yml`) builds and tests on macOS, Ubuntu and Windows, then runs the synthetic accuracy gate.
+`ctest --test-dir build` runs: stroke mapping, trackpad source, PTP frame assembly, stroke preprocessing, stroke variants, sample I/O, stroke counts, the Linux slot tracker (`MtSlotTracker`, testable on any OS), `Recognizer`, fusion, KanjiVG parsing, and (on Linux) the evdev fixture below. CI (`.github/workflows/ci.yml`) builds and tests on macOS, Ubuntu and Windows, then runs the synthetic accuracy gate.
 
 - **Linux evdev fixture** (issue #4): `evdev_uinput_test` creates a virtual type-B pad via `/dev/uinput`, plays scripted strokes (including palm handoff, `SYN_DROPPED`, unplug/re-probe) and checks `EvdevTrackpadSource`. Needs write access to `/dev/uinput`; without it the test is **skipped** (exit 77) so CI stays green. On a VM/machine:
 
@@ -212,6 +212,10 @@ Measurements and caveats are in [docs/findings.md](docs/findings.md).
   # optional: pin a node when debugging a real pad
   # HANDWRITING_EVDEV_DEVICE=/dev/input/event8 ./build/handwriting_app
   ```
+
+### Stroke counts (third-party data)
+
+`src/StrokeCountTable.inc` holds expected stroke counts for the characters the two Zinnia models can output, derived from the Unihan `kTotalStrokes` field (Unicode 18.0.0, (c) Unicode, Inc., [Unicode License v3](https://www.unicode.org/license.txt)). Regenerate with `bash scripts/fetch_unihan.sh && python3 scripts/gen_stroke_counts.py` (needs the built `dump_charset` target and the models).
 
 ## Out of scope
 

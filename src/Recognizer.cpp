@@ -1,5 +1,6 @@
 #include "Recognizer.h"
 
+#include "StrokeCount.h"
 #include "StrokeMapping.h"
 
 #include <QHash>
@@ -10,12 +11,14 @@ Recognizer::Options Recognizer::defaultOptions() {
   stroke_preprocess::parseSpec(QStringLiteral("resample:4+smooth:3"), &o.preprocess);
   o.tolerance.merge = true;  // measured: +10 points top-5 on held-out real samples (docs/findings.md)
   o.tolerance.split = true;
+  o.countWeight = 0.15;  // measured: small but consistent gain on both halves (docs/findings.md)
   return o;
 }
 
 bool Recognizer::optionsFromSpec(const QString& fullSpec, Options* out, QString* error) {
   Options o = defaultOptions();
   o.tolerance = stroke_variants::Options();  // a spec states tolerance explicitly
+  o.countWeight = 0.0;
   QString spec = fullSpec;
   const int at = fullSpec.indexOf(QLatin1Char('@'));
   if (at >= 0) {
@@ -24,8 +27,9 @@ bool Recognizer::optionsFromSpec(const QString& fullSpec, Options* out, QString*
       if (t == QLatin1String("swap")) o.tolerance.swap = true;
       else if (t == QLatin1String("merge")) o.tolerance.merge = true;
       else if (t == QLatin1String("split")) o.tolerance.split = true;
+      else if (t == QLatin1String("count")) o.countWeight = 0.15;
       else {
-        if (error) *error = QStringLiteral("bad tolerance '%1' (swap, merge, split)").arg(t);
+        if (error) *error = QStringLiteral("bad tolerance '%1' (swap, merge, split, count)").arg(t);
         return false;
       }
     }
@@ -73,8 +77,16 @@ RecognitionResult recognizeVariants(const ZinniaBackend* backend, const Recogniz
       out.error = r.error;
     }
     out.latencyMs += r.latencyMs;
+    const int written = variants[vi].size();
     for (Candidate c : r.candidates) {
       if (vi > 0) c.score -= static_cast<float>(options.tolerancePenalty);
+      if (options.countWeight > 0.0) {
+        const int expected = stroke_count::expected(c.character);
+        if (expected > 0) {
+          const int extra = qMax(0, qAbs(written - expected) - options.countBand);
+          c.score -= static_cast<float>(options.countWeight * extra);
+        }
+      }
       auto it = best.find(c.character);
       if (it == best.end() || c.score > it.value().score) best.insert(c.character, c);
     }
@@ -96,7 +108,7 @@ RecognitionResult Recognizer::recognize(const QVector<Stroke>& raw, int surfaceW
                                         int surfaceHeight, RecognitionMode mode,
                                         const Options& options) const {
   const Prepared p = prepare(raw, surfaceWidth, surfaceHeight, options);
-  if (options.tolerance.any()) {
+  if (options.tolerance.any() || options.countWeight > 0.0) {
     const int depth = qMax(options.fusionDepth, options.topN);
     if (mode != RecognitionMode::Both) {
       RecognitionResult r = recognizeVariants(backend_, p, mode, options, depth);

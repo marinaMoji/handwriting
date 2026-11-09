@@ -24,11 +24,16 @@ class Recognizer {
     // keep each character's best score (minus tolerancePenalty for non-original readings).
     stroke_variants::Options tolerance;
     double tolerancePenalty = 0.1;
+    // Stroke-count prior: a candidate whose expected stroke count (Unihan) differs from the
+    // number of strokes in the reading by more than `countBand` loses `countWeight` per extra
+    // stroke. 0 weight = off. Unknown counts (kana, ASCII) are left alone.
+    double countWeight = 0.0;
+    int countBand = 1;  // strokes of difference that cost nothing (written order/joins vary)
     int fusionDepth = 20;  // candidates fetched from each model before fusing
     stroke_preprocess::Options preprocess;
   };
 
-  static constexpr const char* kDefaultPreprocessSpec = "resample:4+smooth:3@merge+split";
+  static constexpr const char* kDefaultPreprocessSpec = "resample:4+smooth:3@merge+split+count";
 
   // Default options (fit + default preprocessing).
   static Options defaultOptions();

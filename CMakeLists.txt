@@ -38,6 +38,7 @@ add_library(handwriting_backend STATIC
   src/ZinniaBackend.cpp
   src/SampleIO.cpp
   src/Recognizer.cpp
+  src/StrokeCount.cpp
 )
 set_target_properties(handwriting_backend PROPERTIES AUTOMOC OFF AUTOUIC OFF AUTORCC OFF)
 target_include_directories(handwriting_backend PUBLIC
@@ -208,3 +209,10 @@ add_executable(stroke_variants_test tests/stroke_variants_test.cpp)
 target_include_directories(stroke_variants_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(stroke_variants_test PRIVATE handwriting_backend)
 add_test(NAME stroke_variants_test COMMAND stroke_variants_test)
+
+add_executable(dump_charset src/dump_charset_main.cpp)
+target_link_libraries(dump_charset PRIVATE zinnia)
+
+add_executable(stroke_count_test tests/stroke_count_test.cpp)
+target_link_libraries(stroke_count_test PRIVATE handwriting_backend)
+add_test(NAME stroke_count_test COMMAND stroke_count_test)

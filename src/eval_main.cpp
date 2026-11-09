@@ -81,6 +81,8 @@ int main(int argc, char** argv) {
   unsigned seed = 1234;
   double tolPenalty = 0.0;
   bool keepSpecks = false;
+  double countWeight = -1.0;
+  int countBand = -1;
   int charSplit = -1;  // 0/1: keep only samples whose first code point is even/odd
   int synthetic = 0;
   double noise = 1.0;
@@ -113,6 +115,8 @@ int main(int argc, char** argv) {
     else if (a == QLatin1String("--kvg-chars")) kvgChars = next();
     else if (a == QLatin1String("--kvg-max")) kvgMax = next().toInt();
     else if (a == QLatin1String("--keep-specks")) keepSpecks = true;
+    else if (a == QLatin1String("--count-weight")) countWeight = next().toDouble();
+    else if (a == QLatin1String("--count-band")) countBand = next().toInt();
     else if (a == QLatin1String("--tol-penalty")) tolPenalty = next().toDouble();
     else if (a == QLatin1String("--char-split")) charSplit = next().toInt();
     else if (a == QLatin1String("--seed")) seed = next().toUInt();
@@ -127,6 +131,7 @@ int main(int argc, char** argv) {
              "       [--modes ja,tw,both] [--variants raw,none,rdp:3,smooth:2+rdp:3]\n"
              "       [--misses] [--csv FILE] [--save-synthetic DIR]\n"
              "       [--fusions interleave,rrf,max,z,cal] [--rrf-k K] [--ja-bias B] [--tw-bias B]\n"
+             "       [--count-weight W] [--count-band B]   (variants may end in @count)\n"
              "       [--tol-penalty P] [--char-split 0|1]   (variants may end in @swap+merge+split)\n"
              "       [--kanjivg FILE [--kvg-chars STR] [--kvg-max N]] [--seed N]\n";
       return 0;
@@ -257,6 +262,8 @@ int main(int argc, char** argv) {
       Recognizer::Options ropts = optionsFor(variant);
       ropts.tolerancePenalty = tolPenalty;
       if (keepSpecks) ropts.dropSpecks = false;
+      if (countWeight >= 0.0) ropts.countWeight = countWeight;
+      if (countBand >= 0) ropts.countBand = countBand;
       if (m.startsWith(QLatin1String("both/"))) {
         fusion::parse(m.mid(5), &ropts.fusion);
         ropts.fusionParams = fparams;
