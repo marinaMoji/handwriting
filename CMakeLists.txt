@@ -179,3 +179,7 @@ add_executable(kanjivg_test tests/kanjivg_test.cpp)
 target_include_directories(kanjivg_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(kanjivg_test PRIVATE handwriting_backend)
 add_test(NAME kanjivg_test COMMAND kanjivg_test)
+
+add_executable(fusion_test tests/fusion_test.cpp)
+target_link_libraries(fusion_test PRIVATE handwriting_backend)
+add_test(NAME fusion_test COMMAND fusion_test)

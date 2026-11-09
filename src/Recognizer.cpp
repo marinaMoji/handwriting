@@ -39,5 +39,21 @@ RecognitionResult Recognizer::recognize(const QVector<Stroke>& raw, int surfaceW
                                         int surfaceHeight, RecognitionMode mode,
                                         const Options& options) const {
   const Prepared p = prepare(raw, surfaceWidth, surfaceHeight, options);
+  if (mode == RecognitionMode::Both && options.fusion != fusion::Method::Interleave) {
+    const int depth = qMax(options.fusionDepth, options.topN);
+    const RecognitionResult ja = backend_->recognize(p.strokes, RecognitionMode::Japanese, p.width,
+                                                     p.height, depth);
+    const RecognitionResult tw = backend_->recognize(p.strokes, RecognitionMode::TraditionalChinese,
+                                                     p.width, p.height, depth);
+    RecognitionResult out;
+    out.strokeCount = ja.strokeCount;
+    out.latencyMs = ja.latencyMs + tw.latencyMs;
+    out.candidates = fusion::fuse(ja.candidates, tw.candidates, options.fusion, options.topN,
+                                  options.fusionParams);
+    if (out.candidates.isEmpty()) {
+      out.error = !ja.error.isEmpty() ? ja.error : tw.error;
+    }
+    return out;
+  }
   return backend_->recognize(p.strokes, mode, p.width, p.height, options.topN);
 }

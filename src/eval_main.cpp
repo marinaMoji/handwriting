@@ -84,6 +84,8 @@ int main(int argc, char** argv) {
   bool geom = true;
   bool showMisses = false;
   bool samplesGiven = false;
+  fusion::Params fparams;
+  QStringList fusions = {QStringLiteral("interleave")};
   QStringList modes = {QStringLiteral("ja"), QStringLiteral("tw"), QStringLiteral("both")};
   QStringList variants = {QStringLiteral("raw"), QStringLiteral("none"), QStringLiteral("rdp:3"),
                           QStringLiteral("smooth:2"), QStringLiteral("smooth:2+rdp:3")};
@@ -97,6 +99,10 @@ int main(int argc, char** argv) {
     else if (a == QLatin1String("--synthetic")) synthetic = next().toInt();
     else if (a == QLatin1String("--modes")) modes = next().split(',', Qt::SkipEmptyParts);
     else if (a == QLatin1String("--variants")) variants = next().split(',', Qt::SkipEmptyParts);
+    else if (a == QLatin1String("--fusions")) fusions = next().split(',', Qt::SkipEmptyParts);
+    else if (a == QLatin1String("--rrf-k")) fparams.rrfK = next().toDouble();
+    else if (a == QLatin1String("--ja-bias")) fparams.jaBias = next().toDouble();
+    else if (a == QLatin1String("--tw-bias")) fparams.twBias = next().toDouble();
     else if (a == QLatin1String("--csv")) csvPath = next();
     else if (a == QLatin1String("--save-synthetic")) saveSyntheticDir = next();
     else if (a == QLatin1String("--kanjivg")) kvgPath = next();
@@ -113,6 +119,7 @@ int main(int argc, char** argv) {
       out << "usage: handwriting_eval [--samples DIR] [--synthetic N] [--models DIR]\n"
              "       [--modes ja,tw,both] [--variants raw,none,rdp:3,smooth:2+rdp:3]\n"
              "       [--misses] [--csv FILE] [--save-synthetic DIR]\n"
+             "       [--fusions interleave,rrf,max,z,cal] [--rrf-k K] [--ja-bias B] [--tw-bias B]\n"
              "       [--kanjivg FILE [--kvg-chars STR] [--kvg-max N]] [--seed N]\n";
       return 0;
     } else {
@@ -121,6 +128,13 @@ int main(int argc, char** argv) {
     }
   }
 
+  for (const QString& f : fusions) {
+    fusion::Method fm;
+    if (!fusion::parse(f, &fm)) {
+      err << "bad fusion '" << f << "' (interleave, rrf, max, z, cal)\n";
+      return 2;
+    }
+  }
   for (const QString& v : variants) {
     stroke_preprocess::Options o;
     QString e;
@@ -205,19 +219,36 @@ int main(int argc, char** argv) {
   };
 
   out << QStringLiteral("%1 %2 %3 %4 %5 %6 %7 %8\n")
-             .arg(QStringLiteral("variant"), -18).arg(QStringLiteral("mode"), -5)
+             .arg(QStringLiteral("variant"), -18).arg(QStringLiteral("mode"), -11)
              .arg(QStringLiteral("n"), 5).arg(QStringLiteral("top1"), 7)
              .arg(QStringLiteral("top5"), 7).arg(QStringLiteral("top10"), 7)
              .arg(QStringLiteral("mrr"), 6).arg(QStringLiteral("ms"), 6);
 
   for (const QString& variant : variants) {
-    for (const QString& m : modes) {
+    // "both" expands to one row per fusion method (plain "both" = interleave).
+    QStringList rows;
+    for (const QString& m0 : modes) {
+      if (m0 == QLatin1String("both")) {
+        for (const QString& f : fusions) {
+          rows << (f == QLatin1String("interleave") ? m0 : QStringLiteral("both/") + f);
+        }
+      } else {
+        rows << m0;
+      }
+    }
+    for (const QString& m : rows) {
       Stats st;
+      Recognizer::Options ropts = optionsFor(variant);
+      if (m.startsWith(QLatin1String("both/"))) {
+        fusion::parse(m.mid(5), &ropts.fusion);
+        ropts.fusionParams = fparams;
+      }
       for (const Sample& s : samples) {
         QElapsedTimer t;
         t.start();
         const RecognitionResult r = recognizer.recognize(s.strokes, s.surfaceWidth, s.surfaceHeight,
-                                                         modeOf(m), optionsFor(variant));
+                                                         modeOf(m.left(m.indexOf('/') < 0 ? m.size() : m.indexOf('/'))),
+                                                         ropts);
         st.latencySum += t.nsecsElapsed() / 1e6;
         const int rank = rankOf(r, s.character);
         ++st.n;
@@ -231,7 +262,7 @@ int main(int argc, char** argv) {
       }
       auto pct = [&](int k) { return 100.0 * k / qMax(1, st.n); };
       out << QStringLiteral("%1 %2 %3 %4 %5 %6 %7 %8\n")
-                 .arg(variant, -18).arg(m, -5).arg(st.n, 5)
+                 .arg(variant, -18).arg(m, -11).arg(st.n, 5)
                  .arg(pct(st.top1), 6, 'f', 1).arg(pct(st.top5), 6, 'f', 1)
                  .arg(pct(st.top10), 6, 'f', 1).arg(st.rrSum / qMax(1, st.n), 6, 'f', 3)
                  .arg(st.latencySum / qMax(1, st.n), 6, 'f', 2);

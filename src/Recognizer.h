@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Fusion.h"
 #include "StrokePreprocess.h"
 #include "ZinniaBackend.h"
 
@@ -14,6 +15,10 @@ class Recognizer {
     int margin = 24;
     double maxScale = 4.0;
     int topN = 10;
+    // "Both" mode: how the ja and tw lists are merged. Interleave is the original behaviour.
+    fusion::Method fusion = fusion::Method::Interleave;
+    fusion::Params fusionParams;
+    int fusionDepth = 20;  // candidates fetched from each model before fusing
     stroke_preprocess::Options preprocess;
   };
 
