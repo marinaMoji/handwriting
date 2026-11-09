@@ -2,6 +2,8 @@
 
 #include "CandidatePanel.h"
 #include "DrawingCanvas.h"
+#include "HoldKey.h"
+#include "StrokeMapping.h"
 
 #include <QAbstractSpinBox>
 #include <QApplication>
@@ -38,7 +40,6 @@ MainWindow::MainWindow(ZinniaBackend* backend, QWidget* parent)
   canvas_ = new DrawingCanvas(leftColumn);
   left->addWidget(canvas_, /*stretch*/ 1);
 
-  // Fixed-height control bar so the Expanding canvas cannot cover the buttons.
   auto* controlBar = new QWidget(leftColumn);
   controlBar->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
   auto* controls = new QHBoxLayout(controlBar);
@@ -84,13 +85,16 @@ MainWindow::MainWindow(ZinniaBackend* backend, QWidget* parent)
   connect(candidates_, &CandidatePanel::selectionChanged, this, [this](const QString& ch) {
     copyButton_->setEnabled(!ch.isEmpty());
   });
+  connect(qApp, &QGuiApplication::applicationStateChanged, this,
+          &MainWindow::onApplicationStateChanged);
 
+  // App-wide filter for the hold key (see HoldKey.h); ignored while typing in text widgets.
   qApp->installEventFilter(this);
   canvas_->setFocus(Qt::OtherFocusReason);
 
   updateDiagnostics({});
   statusBar()->showMessage(
-      tr("Click-drag or hold Space to write · JA: %1 · TW: %2")
+      tr("Click-drag or hold ` to write · JA: %1 · TW: %2")
           .arg(QFileInfo(backend_->japaneseModelPath()).fileName())
           .arg(QFileInfo(backend_->traditionalModelPath()).fileName()));
 }
@@ -99,24 +103,47 @@ RecognitionMode MainWindow::currentMode() const {
   return static_cast<RecognitionMode>(modeCombo_->currentData().toInt());
 }
 
-bool MainWindow::shouldStealSpaceFromFocus() const {
-  QWidget* focus = QApplication::focusWidget();
-  if (!focus) {
+bool MainWindow::shouldHandleHoldKeyFromFocus() const {
+  // Always handle the key while already holding, so release is not lost.
+  if (canvas_->holdToWriteActive()) {
     return true;
   }
-  // Let real text fields / combos keep Space.
-  if (qobject_cast<QLineEdit*>(focus) || qobject_cast<QTextEdit*>(focus) ||
-      qobject_cast<QComboBox*>(focus) || qobject_cast<QAbstractSpinBox*>(focus)) {
-    return false;
+  QWidget* focus = QApplication::focusWidget();
+  if (focus == nullptr) {
+    return true;
   }
-  return true;
+  // Only text-entry widgets keep the key (it types ` / ² there).
+  return !(qobject_cast<QLineEdit*>(focus) || qobject_cast<QTextEdit*>(focus) ||
+           qobject_cast<QAbstractSpinBox*>(focus) ||
+           (qobject_cast<QComboBox*>(focus) &&
+            qobject_cast<QComboBox*>(focus)->isEditable()));
 }
 
 bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
+  Q_UNUSED(watched);
+  // While hold-to-write is active, pad presses/taps must not click anything.
+  if (canvas_->holdToWriteActive()) {
+    switch (event->type()) {
+      case QEvent::MouseButtonPress:
+      case QEvent::MouseButtonRelease:
+      case QEvent::MouseButtonDblClick:
+      case QEvent::ContextMenu:
+        return true;
+      default:
+        break;
+    }
+  }
   if (event->type() == QEvent::KeyPress || event->type() == QEvent::KeyRelease) {
     auto* keyEvent = static_cast<QKeyEvent*>(event);
-    if (keyEvent->key() == Qt::Key_Space && !keyEvent->isAutoRepeat() &&
-        shouldStealSpaceFromFocus()) {
+    static const bool debugKeys = qEnvironmentVariableIsSet("HANDWRITING_DEBUG_KEYS");
+    if (debugKeys) {
+      qInfo("key %s qtKey=0x%x nativeVK=0x%x scan=0x%x text='%s' hold=%d",
+            event->type() == QEvent::KeyPress ? "press" : "release", keyEvent->key(),
+            keyEvent->nativeVirtualKey(), keyEvent->nativeScanCode(),
+            qPrintable(keyEvent->text()), hold_key::isHoldToWriteKey(keyEvent));
+    }
+    if (hold_key::isHoldToWriteKey(keyEvent) && !keyEvent->isAutoRepeat() &&
+        shouldHandleHoldKeyFromFocus()) {
       if (event->type() == QEvent::KeyPress) {
         canvas_->beginHoldToWrite();
       } else {
@@ -128,26 +155,34 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
   return QMainWindow::eventFilter(watched, event);
 }
 
+void MainWindow::changeEvent(QEvent* event) {
+  if (event->type() == QEvent::WindowDeactivate) {
+    canvas_->endHoldToWrite();
+  }
+  QMainWindow::changeEvent(event);
+}
+
+void MainWindow::onApplicationStateChanged(Qt::ApplicationState state) {
+  if (state != Qt::ApplicationActive) {
+    canvas_->endHoldToWrite();
+  }
+}
+
 void MainWindow::onHoldToWriteChanged(bool active) {
   if (active) {
-    statusBar()->showMessage(tr("Hold-to-write active — move on the canvas; release Space when done"));
+    statusBar()->showMessage(
+        tr("Hold-to-write active — write on the trackpad; release ` when done"));
   } else {
-    statusBar()->showMessage(tr("Click-drag or hold Space to write"));
+    statusBar()->showMessage(tr("Click-drag or hold ` to write"));
   }
-  // Refresh the Input: label without wiping recognition stats.
-  const QString writeState = active ? tr("hold-to-write") : tr("click-drag");
-  QString text = diagnostics_->text();
-  const QString marker = QStringLiteral(" · Mode:");
-  const int modeAt = text.indexOf(marker);
-  if (text.startsWith(QStringLiteral("Input:")) && modeAt > 0) {
-    diagnostics_->setText(tr("Input: %1").arg(writeState) + text.mid(modeAt));
-  }
+  updateDiagnostics(lastResult_);
 }
 
 void MainWindow::clearAll() {
   canvas_->clearStrokes();
   candidates_->clear();
-  updateDiagnostics({});
+  lastResult_ = {};
+  updateDiagnostics(lastResult_);
 }
 
 void MainWindow::undoStroke() {
@@ -163,10 +198,10 @@ void MainWindow::copySelected() {
 }
 
 void MainWindow::updateDiagnostics(const RecognitionResult& result) {
+  lastResult_ = result;
   const QString modeName = modeCombo_->currentText();
   const QString writeState =
       canvas_->holdToWriteActive() ? tr("hold-to-write") : tr("click-drag");
-  // Keep this short so diagnostics do not steal vertical space from the canvas.
   diagnostics_->setText(
       tr("Input: %1 · Mode: %2 · Strokes: %3 · Latency: %4 ms%5")
           .arg(writeState)
@@ -183,10 +218,11 @@ void MainWindow::onStrokesChanged() {
 }
 
 void MainWindow::runRecognition() {
-  const QVector<Stroke> strokes = canvas_->strokes();
-  if (strokes.isEmpty()) {
+  const QVector<Stroke> rawStrokes = canvas_->strokes();
+  if (rawStrokes.isEmpty()) {
     candidates_->clear();
-    updateDiagnostics({});
+    lastResult_ = {};
+    updateDiagnostics(lastResult_);
     return;
   }
 
@@ -194,6 +230,8 @@ void MainWindow::runRecognition() {
   const RecognitionMode mode = currentMode();
   const int w = canvas_->logicalWidth();
   const int h = canvas_->logicalHeight();
+  // Crop to the ink and fit the recognizer canvas, so position/size on the surface do not matter.
+  const QVector<Stroke> strokes = stroke_mapping::fitToCanvas(rawStrokes, w, h);
   ZinniaBackend* backend = backend_;
 
   auto* watcher = new QFutureWatcher<RecognitionResult>(this);
@@ -212,8 +250,4 @@ void MainWindow::runRecognition() {
     return backend->recognize(strokes, mode, w, h, 10);
   });
   watcher->setFuture(future);
-}
-
-void MainWindow::onRecognitionFinished() {
-  // Unused; kept for slot naming symmetry / future hooks.
 }

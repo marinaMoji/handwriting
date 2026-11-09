@@ -1,11 +1,8 @@
 #include "TrackpadStrokeCapture.h"
 
-#include <QWidget>
-
 #if !defined(Q_OS_MACOS)
 
-TrackpadStrokeCapture::TrackpadStrokeCapture(QWidget* host, QObject* parent)
-    : QObject(parent), host_(host) {
+TrackpadStrokeCapture::TrackpadStrokeCapture(QObject* parent) : QObject(parent) {
   available_ = false;
 }
 
@@ -13,10 +10,12 @@ TrackpadStrokeCapture::~TrackpadStrokeCapture() = default;
 
 void TrackpadStrokeCapture::setActive(bool) {}
 
-void TrackpadStrokeCapture::onContacts(const QVector<QPointF>&) {}
+void TrackpadStrokeCapture::onContacts(quint64, const QVector<TrackpadContact>&) {}
 
-void TrackpadStrokeCapture::startDevice() {}
+void TrackpadStrokeCapture::setCursorFrozen(bool) {}
 
-void TrackpadStrokeCapture::stopDevice() {}
+void TrackpadStrokeCapture::ensureDevicesStarted() {}
+
+void TrackpadStrokeCapture::stopDevices() {}
 
 #endif

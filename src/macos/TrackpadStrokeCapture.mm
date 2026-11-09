@@ -1,15 +1,13 @@
 #import "TrackpadStrokeCapture.h"
 
 #import <AppKit/AppKit.h>
+#import <ApplicationServices/ApplicationServices.h>
 #import <CoreFoundation/CoreFoundation.h>
 #import <dlfcn.h>
 
 #include <QMetaObject>
 #include <QMetaType>
-#include <QVector>
-#include <QWidget>
-
-Q_DECLARE_METATYPE(QVector<QPointF>)
+#include <atomic>
 
 namespace {
 
@@ -18,24 +16,29 @@ struct MTPoint {
   float y;
 };
 
-// Layout used by MultitouchSupport contact-frame callbacks (undocumented).
+// Community-documented MultitouchSupport contact layout (~96 bytes with padding).
+// `normalized` is position + velocity (4 floats), not position alone.
 struct MTTouch {
   int frame;
   double timestamp;
   int identifier;
   int state;
-  int foo3;
-  int foo4;
-  MTPoint normalized;
+  int finger;
+  int hand;
+  MTPoint normalized;          // position in [0, 1], origin bottom-left
+  MTPoint normalizedVelocity;
   float size;
-  int zero1;
+  int unknown0;
   float angle;
   float majorAxis;
   float minorAxis;
-  MTPoint unknown2;
-  int zero2[2];
+  MTPoint mmPosition;  // physical position in mm
+  MTPoint mmVelocity;
+  int unknown2[2];
   float density;
 };
+
+static_assert(sizeof(MTTouch) == 96, "MTTouch must be 96 bytes to match MultitouchSupport");
 
 enum {
   MTTouchStateNotTracking = 0,
@@ -66,7 +69,8 @@ FnMTUnregisterContactFrameCallback gUnregister = nullptr;
 FnMTDeviceStart gStart = nullptr;
 FnMTDeviceStop gStop = nullptr;
 
-TrackpadStrokeCapture* gActiveCapture = nullptr;
+std::atomic<TrackpadStrokeCapture*> gActiveCapture{nullptr};
+std::atomic<quint64> gActiveGeneration{0};
 
 bool loadMultitouchSymbols() {
   static bool attempted = false;
@@ -79,7 +83,6 @@ bool loadMultitouchSymbols() {
   NSBundle* bundle = [NSBundle
       bundleWithPath:@"/System/Library/PrivateFrameworks/MultitouchSupport.framework"];
   if (bundle == nil || ![bundle load]) {
-    // Fallback: dyld shared cache resolution.
     dlopen("/System/Library/PrivateFrameworks/MultitouchSupport.framework/MultitouchSupport",
            RTLD_LAZY);
   }
@@ -101,55 +104,66 @@ int contactCallback(int device, MTTouch* touches, int numTouches, double timesta
   (void)device;
   (void)timestamp;
   (void)frame;
-  TrackpadStrokeCapture* capture = gActiveCapture;
-  if (capture == nullptr || touches == nullptr || numTouches <= 0) {
-    // Still need to signal lift when numTouches is 0.
-    if (capture != nullptr && numTouches == 0) {
-      QMetaObject::invokeMethod(capture, "onContacts", Qt::QueuedConnection,
-                                Q_ARG(QVector<QPointF>, {}));
-    }
+
+  TrackpadStrokeCapture* capture = gActiveCapture.load(std::memory_order_acquire);
+  if (capture == nullptr) {
     return 0;
   }
+  const quint64 generation = gActiveGeneration.load(std::memory_order_acquire);
 
-  QVector<QPointF> points;
-  points.reserve(numTouches);
-  for (int i = 0; i < numTouches; ++i) {
-    const MTTouch& t = touches[i];
-    // Only solid contact, not hover.
-    if (t.state != MTTouchStateTouching && t.state != MTTouchStateMakeTouch) {
-      continue;
+  QVector<TrackpadContact> contacts;
+  if (touches != nullptr) {
+    contacts.reserve(numTouches);
+    for (int i = 0; i < numTouches; ++i) {
+      const MTTouch& t = touches[i];
+      if (t.state != MTTouchStateTouching && t.state != MTTouchStateMakeTouch) {
+        continue;
+      }
+      TrackpadContact c;
+      c.identifier = t.identifier;
+      // normalized position: bottom-left → Qt top-left.
+      c.normalized = QPointF(t.normalized.x, 1.0 - t.normalized.y);
+      contacts.push_back(c);
     }
-    // normalized: bottom-left origin → Qt top-left.
-    points.push_back(QPointF(t.normalized.x, 1.0 - t.normalized.y));
   }
 
+  // Queued to the capture's thread; generation discards events after deactivate/destroy.
   QMetaObject::invokeMethod(capture, "onContacts", Qt::QueuedConnection,
-                            Q_ARG(QVector<QPointF>, points));
+                            Q_ARG(quint64, generation),
+                            Q_ARG(QVector<TrackpadContact>, contacts));
   return 0;
 }
 
 }  // namespace
 
-TrackpadStrokeCapture::TrackpadStrokeCapture(QWidget* host, QObject* parent)
-    : QObject(parent), host_(host) {
+TrackpadStrokeCapture::TrackpadStrokeCapture(QObject* parent) : QObject(parent) {
   available_ = loadMultitouchSymbols();
-  qRegisterMetaType<QVector<QPointF>>("QVector<QPointF>");
+  qRegisterMetaType<QVector<TrackpadContact>>("QVector<TrackpadContact>");
+}
+
+void TrackpadStrokeCapture::setCursorFrozen(bool frozen) {
+  if (frozen == cursorFrozen_) {
+    return;
+  }
+  cursorFrozen_ = frozen;
+  // Detached: pointer stays put while trackpad/mouse deltas are ignored.
+  CGAssociateMouseAndMouseCursorPosition(frozen ? false : true);
 }
 
 TrackpadStrokeCapture::~TrackpadStrokeCapture() {
-  stopDevice();
+  setActive(false);
+  stopDevices();
 }
 
-void TrackpadStrokeCapture::startDevice() {
-  if (!devices_.isEmpty() || !available_) {
+void TrackpadStrokeCapture::ensureDevicesStarted() {
+  if (devicesStarted_ || !available_) {
     return;
   }
 
-  // Prefer the full device list (built-in trackpad + Magic Trackpad, etc.).
   if (gCreateList) {
-    CFMutableArrayRef list = gCreateList();
+    CFMutableArrayRef list = gCreateList();  // returns +1 create ref
     if (list != nullptr) {
-      deviceList_ = (void*)CFRetain(list);
+      deviceList_ = list;  // take ownership of the create ref (no extra CFRetain)
       const CFIndex count = CFArrayGetCount(list);
       for (CFIndex i = 0; i < count; ++i) {
         MTDeviceRef device = (MTDeviceRef)CFArrayGetValueAtIndex(list, i);
@@ -160,7 +174,6 @@ void TrackpadStrokeCapture::startDevice() {
         gStart(device, 0);
         devices_.push_back(device);
       }
-      CFRelease(list);
     }
   }
 
@@ -173,12 +186,13 @@ void TrackpadStrokeCapture::startDevice() {
     }
   }
 
-  if (devices_.isEmpty()) {
+  devicesStarted_ = !devices_.isEmpty();
+  if (!devicesStarted_) {
     available_ = false;
   }
 }
 
-void TrackpadStrokeCapture::stopDevice() {
+void TrackpadStrokeCapture::stopDevices() {
   for (void* device : devices_) {
     if (gUnregister) {
       gUnregister((MTDeviceRef)device, contactCallback);
@@ -188,6 +202,7 @@ void TrackpadStrokeCapture::stopDevice() {
     }
   }
   devices_.clear();
+  devicesStarted_ = false;
   if (deviceList_ != nullptr) {
     CFRelease((CFArrayRef)deviceList_);
     deviceList_ = nullptr;
@@ -195,46 +210,101 @@ void TrackpadStrokeCapture::stopDevice() {
 }
 
 void TrackpadStrokeCapture::setActive(bool active) {
-  active_ = active;
-  receivedContact_ = false;
-  touching_ = false;
-  activeFingerId_ = -1;
+  if (active == active_) {
+    return;
+  }
 
   if (active) {
-    gActiveCapture = this;
-    startDevice();
-  } else {
-    if (gActiveCapture == this) {
-      gActiveCapture = nullptr;
+    ensureDevicesStarted();
+    if (!available_) {
+      active_ = false;
+      return;
     }
-    if (touching_) {
-      emit strokeEnded();
-      touching_ = false;
-    }
-    stopDevice();
+    // New generation invalidates any in-flight queued callbacks.
+    const quint64 gen = generation_ + 1;
+    generation_ = gen;
+    receivedContact_ = false;
+    touching_ = false;
+    activeFingerId_ = -1;
+    awaitingLift_ = false;
+    active_ = true;
+    gActiveGeneration.store(gen, std::memory_order_release);
+    gActiveCapture.store(this, std::memory_order_release);
+    return;
+  }
+
+  // Deactivate: clear global pointer first so the MT thread stops targeting us,
+  // then bump generation so already-queued invokes are ignored.
+  if (gActiveCapture.load(std::memory_order_relaxed) == this) {
+    gActiveCapture.store(nullptr, std::memory_order_release);
+  }
+  ++generation_;
+  gActiveGeneration.store(generation_, std::memory_order_release);
+
+  setCursorFrozen(false);
+  const bool wasTouching = touching_;
+  touching_ = false;
+  activeFingerId_ = -1;
+  receivedContact_ = false;
+  active_ = false;
+
+  if (wasTouching) {
+    emit strokeEnded();
   }
 }
 
-void TrackpadStrokeCapture::onContacts(const QVector<QPointF>& touchingPoints) {
-  if (!active_) {
+void TrackpadStrokeCapture::onContacts(quint64 generation,
+                                       const QVector<TrackpadContact>& contacts) {
+  if (!active_ || generation != generation_) {
     return;
   }
 
-  if (touchingPoints.isEmpty()) {
+  if (contacts.isEmpty()) {
+    awaitingLift_ = false;
     if (touching_) {
       touching_ = false;
+      activeFingerId_ = -1;
       emit strokeEnded();
     }
     return;
   }
 
-  receivedContact_ = true;
-  // Use the first touching finger; map its absolute pad position to the canvas.
-  const QPointF p = touchingPoints.first();
+  if (!receivedContact_) {
+    receivedContact_ = true;
+    setCursorFrozen(true);
+  }
+  if (awaitingLift_) {
+    return;
+  }
+
+  const TrackpadContact* chosen = nullptr;
+  if (touching_ && activeFingerId_ >= 0) {
+    for (const TrackpadContact& c : contacts) {
+      if (c.identifier == activeFingerId_) {
+        chosen = &c;
+        break;
+      }
+    }
+  }
+  if (chosen == nullptr) {
+    // New stroke or tracked finger gone: pick the first contact.
+    if (touching_) {
+      // Tracked finger lifted while another contact (likely a palm) remains:
+      // end the stroke and ignore everything until the pad is fully clear.
+      touching_ = false;
+      activeFingerId_ = -1;
+      awaitingLift_ = true;
+      emit strokeEnded();
+      return;
+    }
+    chosen = &contacts.first();
+  }
+
   if (!touching_) {
     touching_ = true;
-    emit strokeBegan(p);
+    activeFingerId_ = chosen->identifier;
+    emit strokeBegan(chosen->normalized);
   } else {
-    emit strokeMoved(p);
+    emit strokeMoved(chosen->normalized);
   }
 }

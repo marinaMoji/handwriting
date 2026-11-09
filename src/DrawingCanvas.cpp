@@ -1,14 +1,17 @@
 #include "DrawingCanvas.h"
 
+#include "HoldKey.h"
+#include "StrokeMapping.h"
 #include "macos/TrackpadStrokeCapture.h"
 
-#include <QFocusEvent>
+#include <QCursor>
+#include <QEvent>
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QResizeEvent>
-#include <QShowEvent>
 #include <QTimer>
+#include <QWindow>
 
 namespace {
 constexpr int kHoldStrokeIdleMs = 120;
@@ -26,23 +29,18 @@ DrawingCanvas::DrawingCanvas(QWidget* parent) : QWidget(parent) {
   holdStrokeIdleTimer_->setSingleShot(true);
   holdStrokeIdleTimer_->setInterval(kHoldStrokeIdleMs);
   connect(holdStrokeIdleTimer_, &QTimer::timeout, this, [this]() {
-    // Mouse-fallback stroke break only (absolute mode ends on finger lift).
     if (drawSource_ == DrawSource::HoldToWrite && !absoluteTrackpadDriving()) {
       finishStroke();
     }
   });
 
-  trackpadCapture_ = new TrackpadStrokeCapture(this, this);
+  trackpadCapture_ = new TrackpadStrokeCapture(this);
   connect(trackpadCapture_, &TrackpadStrokeCapture::strokeBegan, this,
           &DrawingCanvas::onTrackpadStrokeBegan);
   connect(trackpadCapture_, &TrackpadStrokeCapture::strokeMoved, this,
           &DrawingCanvas::onTrackpadStrokeMoved);
   connect(trackpadCapture_, &TrackpadStrokeCapture::strokeEnded, this,
           &DrawingCanvas::onTrackpadStrokeEnded);
-}
-
-void DrawingCanvas::showEvent(QShowEvent* event) {
-  QWidget::showEvent(event);
 }
 
 bool DrawingCanvas::absoluteTrackpadDriving() const {
@@ -81,6 +79,11 @@ void DrawingCanvas::beginHoldToWrite() {
   }
   holdToWrite_ = true;
   trackpadFingerVisible_ = false;
+  holdBeganAt_.start();
+  // Keep the pointer over the canvas so a stray press cannot land on another window.
+  if (!rect().contains(mapFromGlobal(QCursor::pos()))) {
+    QCursor::setPos(mapToGlobal(rect().center()));
+  }
   updateTracking();
   setFocus(Qt::ShortcutFocusReason);
   if (trackpadCapture_ && trackpadCapture_->isAvailable()) {
@@ -109,37 +112,51 @@ void DrawingCanvas::endHoldToWrite() {
 }
 
 void DrawingCanvas::updateTracking() {
-  // Keep mouse-move hold fallback until MultitouchSupport proves it is driving.
   setMouseTracking(holdToWrite_ || drawSource_ == DrawSource::ClickDrag);
 }
 
+namespace {
+qreal padAspect() {
+  static const qreal aspect = []() {
+    bool ok = false;
+    const qreal v = qEnvironmentVariable("HANDWRITING_PAD_ASPECT").toDouble(&ok);
+    return (ok && v > 0.0) ? v : stroke_mapping::kDefaultTrackpadAspect;
+  }();
+  return aspect;
+}
+}  // namespace
+
+int DrawingCanvas::surfaceWidth() const {
+  return stroke_mapping::surfaceWidthFor(surfaceHeight(), padAspect());
+}
+
+QRectF DrawingCanvas::surfaceRect() const {
+  const qreal aspect = static_cast<qreal>(surfaceWidth()) / surfaceHeight();
+  qreal w = width();
+  qreal h = w / aspect;
+  if (h > height()) {
+    h = height();
+    w = h * aspect;
+  }
+  return QRectF((width() - w) / 2.0, (height() - h) / 2.0, w, h);
+}
+
 StrokePoint DrawingCanvas::toLogical(const QPointF& widgetPos) const {
-  const qreal sx = logicalWidth() / qMax<qreal>(1.0, width());
-  const qreal sy = logicalHeight() / qMax<qreal>(1.0, height());
+  const QRectF r = surfaceRect();
+  const qreal s = surfaceWidth() / qMax<qreal>(1.0, r.width());
   StrokePoint p;
-  p.x = qBound(0, static_cast<int>(widgetPos.x() * sx), logicalWidth() - 1);
-  p.y = qBound(0, static_cast<int>(widgetPos.y() * sy), logicalHeight() - 1);
+  p.x = qBound(0, static_cast<int>((widgetPos.x() - r.left()) * s), surfaceWidth() - 1);
+  p.y = qBound(0, static_cast<int>((widgetPos.y() - r.top()) * s), surfaceHeight() - 1);
   return p;
 }
 
 StrokePoint DrawingCanvas::fromNormalizedTrackpad(QPointF normalized) const {
-  // Full trackpad surface ↔ full canvas. Corners match; cannot go offscreen.
-  const qreal x = qBound<qreal>(0.0, normalized.x(), 1.0);
-  const qreal y = qBound<qreal>(0.0, normalized.y(), 1.0);
-  StrokePoint p;
-  p.x = static_cast<int>(x * (logicalWidth() - 1) + 0.5);
-  p.y = static_cast<int>(y * (logicalHeight() - 1) + 0.5);
-  return p;
-}
-
-int DrawingCanvas::distanceSquared(const StrokePoint& a, const StrokePoint& b) {
-  const int dx = a.x - b.x;
-  const int dy = a.y - b.y;
-  return dx * dx + dy * dy;
+  return stroke_mapping::fromNormalizedTrackpad(normalized, surfaceWidth(), surfaceHeight());
 }
 
 void DrawingCanvas::startStroke(const StrokePoint& point, DrawSource source) {
   holdStrokeIdleTimer_->stop();
+  cursorStroke_ = false;
   drawSource_ = source;
   currentStroke_.clear();
   currentStroke_.push_back(point);
@@ -164,18 +181,18 @@ void DrawingCanvas::appendPoint(const StrokePoint& point) {
 void DrawingCanvas::appendHoldToWritePoint(const StrokePoint& point) {
   if (drawSource_ != DrawSource::HoldToWrite) {
     startStroke(point, DrawSource::HoldToWrite);
+    cursorStroke_ = true;
     bumpHoldStrokeTimer();
     return;
   }
 
-  if (!currentStroke_.isEmpty()) {
-    const int jumpLimit = kHoldJumpThreshold * kHoldJumpThreshold;
-    if (distanceSquared(currentStroke_.last(), point) >= jumpLimit) {
-      finishStroke();
-      startStroke(point, DrawSource::HoldToWrite);
-      bumpHoldStrokeTimer();
-      return;
-    }
+  if (!currentStroke_.isEmpty() &&
+      stroke_mapping::isHoldJump(currentStroke_.last(), point, kHoldJumpThreshold)) {
+    finishStroke();
+    startStroke(point, DrawSource::HoldToWrite);
+    cursorStroke_ = true;
+    bumpHoldStrokeTimer();
+    return;
   }
 
   appendPoint(point);
@@ -187,14 +204,28 @@ void DrawingCanvas::finishStroke() {
   if (drawSource_ == DrawSource::None) {
     return;
   }
-  if (!currentStroke_.isEmpty()) {
+  // A lone point from cursor fallback is noise (e.g. the pointer being moved), not a stroke.
+  const bool noise = cursorStroke_ && currentStroke_.size() < 2;
+  if (!currentStroke_.isEmpty() && !noise) {
     strokes_.push_back(currentStroke_);
   }
   currentStroke_.clear();
+  cursorStroke_ = false;
   drawSource_ = DrawSource::None;
   updateTracking();
   update();
-  emit strokesChanged();
+  if (!noise) {
+    emit strokesChanged();
+  }
+}
+
+void DrawingCanvas::cancelStroke() {
+  holdStrokeIdleTimer_->stop();
+  currentStroke_.clear();
+  cursorStroke_ = false;
+  drawSource_ = DrawSource::None;
+  updateTracking();
+  update();
 }
 
 void DrawingCanvas::bumpHoldStrokeTimer() {
@@ -210,7 +241,8 @@ void DrawingCanvas::onTrackpadStrokeBegan(QPointF normalized) {
   trackpadFingerNormalized_ = normalized;
   trackpadFingerVisible_ = true;
   if (drawSource_ == DrawSource::HoldToWrite) {
-    finishStroke();
+    // Absolute touch takes over: drop any cursor-fallback stroke instead of committing it.
+    cursorStroke_ ? cancelStroke() : finishStroke();
   }
   startStroke(fromNormalizedTrackpad(normalized), DrawSource::HoldToWrite);
   updateTracking();
@@ -223,6 +255,9 @@ void DrawingCanvas::onTrackpadStrokeMoved(QPointF normalized) {
   trackpadFingerNormalized_ = normalized;
   trackpadFingerVisible_ = true;
   const StrokePoint point = fromNormalizedTrackpad(normalized);
+  if (drawSource_ == DrawSource::HoldToWrite && cursorStroke_) {
+    cancelStroke();
+  }
   if (drawSource_ != DrawSource::HoldToWrite) {
     startStroke(point, DrawSource::HoldToWrite);
   } else {
@@ -245,34 +280,35 @@ void DrawingCanvas::onTrackpadStrokeEnded() {
 
 void DrawingCanvas::paintEvent(QPaintEvent*) {
   QPainter painter(this);
+  painter.fillRect(rect(), palette().window());
+
+  const QRectF area = surfaceRect();
   const QColor bg = holdToWrite_ ? QColor(235, 245, 255) : QColor(250, 248, 242);
-  painter.fillRect(rect(), bg);
+  painter.fillRect(area, bg);
 
   painter.setPen(QPen(QColor(210, 205, 195), 1, Qt::DotLine));
-  const int step = width() / 3;
-  if (step > 0) {
-    painter.drawLine(step, 0, step, height());
-    painter.drawLine(step * 2, 0, step * 2, height());
-    painter.drawLine(0, height() / 3, width(), height() / 3);
-    painter.drawLine(0, (height() * 2) / 3, width(), (height() * 2) / 3);
+  for (int i = 1; i < 3; ++i) {
+    const qreal x = area.left() + area.width() * i / 3.0;
+    const qreal y = area.top() + area.height() * i / 3.0;
+    painter.drawLine(QPointF(x, area.top()), QPointF(x, area.bottom()));
+    painter.drawLine(QPointF(area.left(), y), QPointF(area.right(), y));
   }
 
   painter.setRenderHint(QPainter::Antialiasing, true);
   painter.setPen(QPen(QColor(20, 20, 20), 3, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
 
-  const qreal sx = width() / static_cast<qreal>(logicalWidth());
-  const qreal sy = height() / static_cast<qreal>(logicalHeight());
+  const qreal sc = area.width() / static_cast<qreal>(surfaceWidth());
+  auto toPx = [&](const StrokePoint& p) {
+    return QPointF(area.left() + p.x * sc, area.top() + p.y * sc);
+  };
 
   auto drawStroke = [&](const Stroke& stroke) {
-    if (stroke.size() < 2) {
-      if (stroke.size() == 1) {
-        painter.drawPoint(QPointF(stroke[0].x * sx, stroke[0].y * sy));
-      }
+    if (stroke.size() == 1) {
+      painter.drawPoint(toPx(stroke[0]));
       return;
     }
     for (int i = 1; i < stroke.size(); ++i) {
-      painter.drawLine(QPointF(stroke[i - 1].x * sx, stroke[i - 1].y * sy),
-                       QPointF(stroke[i].x * sx, stroke[i].y * sy));
+      painter.drawLine(toPx(stroke[i - 1]), toPx(stroke[i]));
     }
   };
 
@@ -284,16 +320,15 @@ void DrawingCanvas::paintEvent(QPaintEvent*) {
   }
 
   if (holdToWrite_ && trackpadFingerVisible_) {
-    const StrokePoint tip = fromNormalizedTrackpad(trackpadFingerNormalized_);
-    const QPointF tipPx(tip.x * sx, tip.y * sy);
     painter.setBrush(QColor(40, 110, 200, 160));
     painter.setPen(Qt::NoPen);
-    painter.drawEllipse(tipPx, 6.0, 6.0);
+    painter.drawEllipse(toPx(fromNormalizedTrackpad(trackpadFingerNormalized_)), 6.0, 6.0);
   }
 
   const QColor border = holdToWrite_ ? QColor(40, 110, 200) : QColor(140, 140, 140);
   painter.setPen(QPen(border, holdToWrite_ ? 2 : 1));
-  painter.drawRect(rect().adjusted(0, 0, -1, -1));
+  painter.setBrush(Qt::NoBrush);
+  painter.drawRect(area.adjusted(0.5, 0.5, -0.5, -0.5));
 
   painter.setPen(QColor(100, 100, 100));
   QFont hint = font();
@@ -302,16 +337,16 @@ void DrawingCanvas::paintEvent(QPaintEvent*) {
   QString hintText;
   if (holdToWrite_) {
     if (absoluteTrackpadDriving()) {
-      hintText = tr("Absolute trackpad: corners match canvas · lift between strokes · release Space");
+      hintText = tr("Whole trackpad = this area · write anywhere, it is cropped automatically · lift between strokes · release the ` key");
     } else if (trackpadCapture_ && trackpadCapture_->isAvailable()) {
-      hintText = tr("Hold Space: touch the trackpad (absolute) · or move cursor as fallback");
+      hintText = tr("Hold ` (key left of 1): touch the trackpad (absolute) · or move cursor as fallback");
     } else {
-      hintText = tr("Hold-to-write (cursor fallback): pause between strokes · release Space");
+      hintText = tr("Hold-to-write (cursor fallback): pause between strokes · release the ` key");
     }
   } else {
-    hintText = tr("Click-drag to draw · or hold Space and write on the trackpad");
+    hintText = tr("Click-drag to draw · or hold ` (key left of 1) and write on the trackpad");
   }
-  painter.drawText(rect().adjusted(8, 8, -8, -8), Qt::AlignTop | Qt::AlignLeft | Qt::TextWordWrap,
+  painter.drawText(area.adjusted(8, 8, -8, -8), Qt::AlignTop | Qt::AlignLeft | Qt::TextWordWrap,
                    hintText);
 }
 
@@ -339,8 +374,10 @@ void DrawingCanvas::mouseMoveEvent(QMouseEvent* event) {
     return;
   }
 
-  // Cursor fallback while Space is held, until absolute Multitouch takes over.
-  if (holdToWrite_ && !absoluteTrackpadDriving()) {
+  // Ignore the move generated by our own cursor warp right after the key goes down.
+  constexpr qint64 kWarpSettleMs = 250;
+  if (holdToWrite_ && !absoluteTrackpadDriving() && holdBeganAt_.isValid() &&
+      holdBeganAt_.elapsed() > kWarpSettleMs) {
     appendHoldToWritePoint(point);
   }
 }
@@ -356,7 +393,7 @@ void DrawingCanvas::mouseReleaseEvent(QMouseEvent* event) {
 }
 
 void DrawingCanvas::keyPressEvent(QKeyEvent* event) {
-  if (event->key() == Qt::Key_Space && !event->isAutoRepeat()) {
+  if (hold_key::isHoldToWriteKey(event) && !event->isAutoRepeat()) {
     beginHoldToWrite();
     event->accept();
     return;
@@ -365,7 +402,7 @@ void DrawingCanvas::keyPressEvent(QKeyEvent* event) {
 }
 
 void DrawingCanvas::keyReleaseEvent(QKeyEvent* event) {
-  if (event->key() == Qt::Key_Space && !event->isAutoRepeat()) {
+  if (hold_key::isHoldToWriteKey(event) && !event->isAutoRepeat()) {
     endHoldToWrite();
     event->accept();
     return;
@@ -373,9 +410,12 @@ void DrawingCanvas::keyReleaseEvent(QKeyEvent* event) {
   QWidget::keyReleaseEvent(event);
 }
 
-void DrawingCanvas::focusOutEvent(QFocusEvent* event) {
-  // Don't cancel hold-to-write on focus changes; Space release ends it.
-  QWidget::focusOutEvent(event);
+void DrawingCanvas::changeEvent(QEvent* event) {
+  // Window deactivation (Cmd-Tab, dialog) — key release may never arrive.
+  if (event->type() == QEvent::WindowDeactivate && holdToWrite_) {
+    endHoldToWrite();
+  }
+  QWidget::changeEvent(event);
 }
 
 void DrawingCanvas::resizeEvent(QResizeEvent* event) {

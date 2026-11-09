@@ -83,3 +83,12 @@ target_compile_definitions(handwriting_smoke PRIVATE
 target_compile_definitions(handwriting_app PRIVATE
   HANDWRITING_DEFAULT_MODEL_DIR="${CMAKE_CURRENT_SOURCE_DIR}/models"
 )
+
+# --- Unit tests (pure mapping / jump logic) ----------------------------------
+add_executable(stroke_mapping_test
+  tests/stroke_mapping_test.cpp
+)
+target_include_directories(stroke_mapping_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_libraries(stroke_mapping_test PRIVATE Qt6::Core Qt6::Gui handwriting_backend)
+enable_testing()
+add_test(NAME stroke_mapping_test COMMAND stroke_mapping_test)

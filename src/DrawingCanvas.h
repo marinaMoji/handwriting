@@ -2,6 +2,7 @@
 
 #include "ZinniaBackend.h"
 
+#include <QElapsedTimer>
 #include <QWidget>
 
 class QTimer;
@@ -14,9 +15,13 @@ class DrawingCanvas : public QWidget {
   explicit DrawingCanvas(QWidget* parent = nullptr);
 
   QVector<Stroke> strokes() const { return strokes_; }
+  // Recognition canvas size (what Zinnia sees after cropping).
   int logicalWidth() const { return 300; }
   int logicalHeight() const { return 300; }
-  QSize sizeHint() const override { return QSize(300, 300); }
+  // Drawing surface in stroke coordinates: pad-shaped so the whole trackpad is usable.
+  int surfaceWidth() const;
+  int surfaceHeight() const { return 300; }
+  QSize sizeHint() const override { return QSize(480, 300); }
   bool holdToWriteActive() const { return holdToWrite_; }
 
  public slots:
@@ -36,9 +41,8 @@ class DrawingCanvas : public QWidget {
   void mouseReleaseEvent(QMouseEvent* event) override;
   void keyPressEvent(QKeyEvent* event) override;
   void keyReleaseEvent(QKeyEvent* event) override;
-  void focusOutEvent(QFocusEvent* event) override;
+  void changeEvent(QEvent* event) override;
   void resizeEvent(QResizeEvent* event) override;
-  void showEvent(QShowEvent* event) override;
 
  private slots:
   void onTrackpadStrokeBegan(QPointF normalized);
@@ -52,13 +56,14 @@ class DrawingCanvas : public QWidget {
     HoldToWrite,
   };
 
+  QRectF surfaceRect() const;  // letterboxed drawing area inside the widget
   StrokePoint toLogical(const QPointF& widgetPos) const;
   StrokePoint fromNormalizedTrackpad(QPointF normalized) const;
-  static int distanceSquared(const StrokePoint& a, const StrokePoint& b);
   void startStroke(const StrokePoint& point, DrawSource source);
   void appendPoint(const StrokePoint& point);
   void appendHoldToWritePoint(const StrokePoint& point);
   void finishStroke();
+  void cancelStroke();  // drop the in-progress stroke without committing it
   void bumpHoldStrokeTimer();
   void updateTracking();
   bool absoluteTrackpadDriving() const;
@@ -69,6 +74,8 @@ class DrawingCanvas : public QWidget {
   bool holdToWrite_ = false;
   QTimer* holdStrokeIdleTimer_ = nullptr;
   TrackpadStrokeCapture* trackpadCapture_ = nullptr;
-  QPointF trackpadFingerNormalized_{-1.0, -1.0};  // for on-canvas finger marker
+  QPointF trackpadFingerNormalized_{-1.0, -1.0};
   bool trackpadFingerVisible_ = false;
+  bool cursorStroke_ = false;  // in-progress hold stroke came from cursor fallback
+  QElapsedTimer holdBeganAt_;
 };

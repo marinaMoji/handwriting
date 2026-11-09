@@ -18,20 +18,21 @@ class MainWindow : public QMainWindow {
 
  protected:
   bool eventFilter(QObject* watched, QEvent* event) override;
+  void changeEvent(QEvent* event) override;
 
  private slots:
   void onStrokesChanged();
-  void onRecognitionFinished();
   void copySelected();
   void clearAll();
   void undoStroke();
   void onHoldToWriteChanged(bool active);
+  void onApplicationStateChanged(Qt::ApplicationState state);
 
  private:
   RecognitionMode currentMode() const;
   void updateDiagnostics(const RecognitionResult& result);
   void runRecognition();
-  bool shouldStealSpaceFromFocus() const;
+  bool shouldHandleHoldKeyFromFocus() const;
 
   ZinniaBackend* backend_ = nullptr;
   DrawingCanvas* canvas_ = nullptr;
@@ -40,4 +41,5 @@ class MainWindow : public QMainWindow {
   QLabel* diagnostics_ = nullptr;
   QPushButton* copyButton_ = nullptr;
   int recognitionGeneration_ = 0;
+  RecognitionResult lastResult_{};
 };
