@@ -76,3 +76,17 @@ Tuned on characters with an even code point (half A, 102 samples), checked on od
 - Caveats: one writer, 206 samples, so this is a measured improvement but still small-sample. The held-out set (#18) is the real check. Defaults can be changed with `HANDWRITING_PREPROCESS` (a spec without `@` disables tolerance, for example `resample:4+smooth:3`).
 
 **Specks (no-length taps).** 35 strokes across the 214 dev samples had at most 2 points and under 8 px of path: a lone touch-down at the start of a hold, or a contact at the very edge of the pad. They add a phantom stroke (十 became a 3-stroke character read as 未) and an edge speck also enlarges the bounding box used for cropping. They are now dropped when a stroke ends (`DrawingCanvas::finishStroke`), so they never reach the canvas or saved samples, and `Recognizer` also drops them so already-saved samples are cleaned. With merge+split on, dropping them moves Japanese top-1 63.1 -> 65.4, top-5 77.6 -> 79.0, and Both top-5 82.2 -> 83.6. A deliberate click-drag dot is unaffected as long as it moves a few pixels; a pure click without movement is now ignored in every input mode.
+
+**Where the remaining errors are** (214 dev samples, Japanese model top-1, after the above):
+
+| Category | top-1 |
+|---|---|
+| Complex (many strokes) | 86% |
+| Similar shapes | 71% |
+| Common Japanese | 70% |
+| Variant pairs | 66% |
+| Simple (few strokes) | 61% |
+| Traditional forms | 58% |
+| Historical / rare | 50% |
+
+Complex characters do best: many strokes constrain the answer. Simple ones do worst, and the errors are confusable neighbours (二→こ, 大→丈, 口→日, 上→土, 十→4, 日→曰) or kana/ASCII (オ, う, 4) outranking the kanji; most of these have the right answer at rank 2-5 (top-5 is 79%). So the headroom is ranking, not recall: the gap between top-1 and top-5 is about 14 points. A ranking signal that does not depend on stroke order (stroke-count prior, shape) is the next lever; Zinnia's own scores cannot separate these. Traditional forms and rare characters are weak partly because they are rarer in Zinnia's training data.

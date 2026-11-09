@@ -87,6 +87,8 @@ Targets:
 - `stroke_mapping_test` — pad→canvas mapping, crop/fit, jump detection, hold-key matching
 - `trackpad_source_test` — finger/palm tracking shared by all trackpad backends
 - `ptp_frame_test` — Windows Precision Touchpad frame assembly
+- `handwriting_eval` — replay saved/synthetic ink and measure accuracy; `handwriting_recognize` — recognize saved samples from the command line
+- `recognizer_test`, `fusion_test`, `kanjivg_test`, `stroke_variants_test`, `stroke_preprocess_test`, `sample_io_test`, `mt_slot_tracker_test` — see Tests below
 
 ## Run
 
@@ -155,10 +157,52 @@ macOS absolute input uses public AppKit APIs only. Linux needs device-node permi
 
 ## Evaluation and tests
 
-- **Save sample**: type the character you meant in the "Expected" box and press *Save sample*. Ink is stored as JSON in `samples/` (override with `HANDWRITING_SAMPLES_DIR`).
-- **Replay**: `./build/handwriting_eval --samples samples --models models --modes ja,tw,both --variants raw,fit` prints top-1/5/10, MRR and latency. `--synthetic N` adds generated ink; see `--help` options (`--misses`, `--csv`, ...).
-- **Preprocessing**: strokes are resampled and smoothed before recognition (default `resample:4+smooth:3`). Override with `HANDWRITING_PREPROCESS`, e.g. `none`, `rdp:3`, `smooth:2`. The default `resample:4+smooth:3@merge+split` also tries merged/split stroke readings (stroke-order/count tolerance); a spec without `@` turns that off, `@swap` adds adjacent-stroke swaps (slower).
-- **Unit tests**: `ctest --test-dir build` runs stroke mapping, trackpad source, PTP frame assembly, stroke preprocessing, sample I/O and the Linux slot tracker (`MtSlotTracker`, testable on any OS).
+### Collecting real samples
+
+Type the character you meant in the **Expected** box and press Return (or *Save sample*). Ink is stored as JSON in `samples/` (override with `HANDWRITING_SAMPLES_DIR`; the directories are gitignored). The plan, character lists and dev/test/textbook sets are in [docs/sample-protocol.md](docs/sample-protocol.md).
+
+```bash
+python3 scripts/sample_coverage.py              # progress per category, what is missing
+python3 scripts/check_stroke_order.py           # flag samples whose stroke order/count differs from KanjiVG
+```
+
+### Replaying and measuring
+
+```bash
+./build/handwriting_eval --samples samples --models models --modes ja,tw,both \
+    --variants "raw,none,resample:4+smooth:3,resample:4+smooth:3@merge+split" --misses
+./build/handwriting_recognize --mode both --top 5 samples/U+5B66_*.json     # one-off recognition of saved samples
+```
+
+`handwriting_eval` prints top-1/5/10, MRR and latency per variant and mode. A variant is a preprocessing spec optionally followed by `@swap`, `@merge`, `@split` (stroke-order/count tolerance, see below); `raw` skips crop/fit and preprocessing. Useful options: `--misses`, `--csv FILE`, `--fusions interleave,rrf,max,z,cal` (Both-mode merging), `--tol-penalty P`, `--char-split 0|1` (tune on even code points, check on odd), `--keep-specks`.
+
+### Synthetic corpus from KanjiVG
+
+`scripts/fetch_kanjivg.sh` downloads [KanjiVG](https://kanjivg.tagaini.net) (CC BY-SA 3.0; kept in the gitignored `data/`, never redistributed). With it, `handwriting_eval` generates distorted ink for thousands of characters:
+
+```bash
+bash scripts/fetch_kanjivg.sh
+./build/handwriting_eval --models models --kanjivg data/kanjivg.xml --kvg-max 300 --modes ja,tw,both
+```
+
+CI runs this on 300 characters (seed 1234) and fails if accuracy drops below `tests/eval_thresholds.json` (`scripts/check_eval_gate.py`). Raise the thresholds deliberately when accuracy improves. Synthetic ink is good for catching regressions; it is optimistic about real handwriting, so tune on real samples.
+
+### Recognition pipeline
+
+One shared path (`Recognizer`, used by the app, `handwriting_eval` and `handwriting_recognize`):
+
+1. Drop specks (no-length taps, edge/palm contacts; also dropped at capture).
+2. Crop to the ink and fit the 300x300 recognizer canvas.
+3. Preprocess: resample + smooth. Override with `HANDWRITING_PREPROCESS`, e.g. `none`, `rdp:3`, `smooth:2`.
+4. Run the model(s). The default spec `resample:4+smooth:3@merge+split` also tries merged and split stroke readings (stroke-order/count tolerance) and keeps each character's best score; a spec without `@` turns that off, `@swap` adds adjacent-stroke swaps (slower, not worth it so far).
+5. In Both mode, merge the Japanese and Traditional lists (default: interleave).
+
+Measurements and caveats are in [docs/findings.md](docs/findings.md).
+
+### Tests
+
+`ctest --test-dir build` runs: stroke mapping, trackpad source, PTP frame assembly, stroke preprocessing, stroke variants, sample I/O, the Linux slot tracker (`MtSlotTracker`, testable on any OS), `Recognizer`, fusion, KanjiVG parsing, and (on Linux) the evdev fixture below. CI (`.github/workflows/ci.yml`) builds and tests on macOS, Ubuntu and Windows, then runs the synthetic accuracy gate.
+
 - **Linux evdev fixture** (issue #4): `evdev_uinput_test` creates a virtual type-B pad via `/dev/uinput`, plays scripted strokes (including palm handoff, `SYN_DROPPED`, unplug/re-probe) and checks `EvdevTrackpadSource`. Needs write access to `/dev/uinput`; without it the test is **skipped** (exit 77) so CI stays green. On a VM/machine:
 
   ```bash
