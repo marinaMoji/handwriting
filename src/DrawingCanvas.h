@@ -22,6 +22,7 @@ class DrawingCanvas : public QWidget {
   int logicalHeight() const { return 300; }
   // Drawing surface in stroke coordinates: pad-shaped so the whole trackpad is usable.
   int surfaceWidth() const;
+  qreal padAspect() const { return padAspect_; }
   int surfaceHeight() const { return 300; }
   QSize sizeHint() const override { return QSize(480, 300); }
   bool holdToWriteActive() const { return holdToWrite_; }
@@ -49,6 +50,7 @@ class DrawingCanvas : public QWidget {
 
  private slots:
   void onTrackpadFirstContact();
+  void onPadAspectChanged(qreal aspect);
   void onTrackpadStrokeBegan(QPointF normalized);
   void onTrackpadStrokeMoved(QPointF normalized);
   void onTrackpadStrokeEnded();
@@ -81,6 +83,8 @@ class DrawingCanvas : public QWidget {
   TrackpadSource* trackpadCapture_ = nullptr;
   QtTouchCapture* qtTouch_ = nullptr;  // same object as trackpadCapture_ when the Qt backend is used
   bool cursorFrozen_ = false;
+  qreal padAspect_ = 1.6;      // physical pad width/height (learned from the device)
+  bool padAspectFixed_ = false;  // HANDWRITING_PAD_ASPECT override
   QPointF trackpadFingerNormalized_{-1.0, -1.0};
   bool trackpadFingerVisible_ = false;
   bool cursorStroke_ = false;  // in-progress hold stroke came from cursor fallback

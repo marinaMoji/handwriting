@@ -72,6 +72,9 @@ void NSTouchCapture::handleGestureEvent(void* nsEvent) {
     if (it == ids_.end()) {
       it = ids_.insert(key, nextId_++);
     }
+    if (touch.deviceSize.height > 0.0) {
+      reportPadAspect(touch.deviceSize.width / touch.deviceSize.height);
+    }
     TrackpadContact c;
     c.identifier = it.value();
     // normalizedPosition origin is bottom-left; Qt/our contract is top-left.

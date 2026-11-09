@@ -86,3 +86,11 @@ void TrackpadSource::processContacts(const QVector<TrackpadContact>& contacts) {
     emit strokeMoved(chosen->normalized);
   }
 }
+
+void TrackpadSource::reportPadAspect(qreal aspect) {
+  if (!(aspect > 0.2 && aspect < 5.0) || qAbs(aspect - reportedAspect_) < 0.005) {
+    return;
+  }
+  reportedAspect_ = aspect;
+  emit padAspectChanged(aspect);
+}

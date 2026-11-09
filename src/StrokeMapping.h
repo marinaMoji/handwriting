@@ -13,9 +13,9 @@
 
 namespace stroke_mapping {
 
-// Approximate MacBook trackpad width/height. The drawing surface has this
-// aspect, so the whole pad is usable and strokes are never stretched.
-// Override at runtime with HANDWRITING_PAD_ASPECT.
+// Fallback pad width/height (typical MacBook) used until a backend reports the
+// device's real size. The drawing surface has the pad's aspect, so the whole pad
+// is usable and strokes are never stretched. HANDWRITING_PAD_ASPECT overrides it.
 inline constexpr qreal kDefaultTrackpadAspect = 1.6;
 
 inline int surfaceWidthFor(int surfaceHeight, qreal aspect) {

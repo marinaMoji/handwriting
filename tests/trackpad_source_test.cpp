@@ -14,6 +14,7 @@ class FakeSource : public TrackpadSource {
  public:
   QString name() const override { return QStringLiteral("fake"); }
   void feed(const QVector<TrackpadContact>& c) { processContacts(c); }
+  void aspect(qreal a) { reportPadAspect(a); }
 };
 
 static TrackpadContact C(int id, double x, double y) { return {id, QPointF(x, y)}; }
@@ -26,6 +27,17 @@ int main(int argc, char** argv) {
   QObject::connect(&s, &TrackpadSource::strokeMoved, [&](QPointF) { ++moved; });
   QObject::connect(&s, &TrackpadSource::strokeEnded, [&] { ++ended; });
   QObject::connect(&s, &TrackpadSource::firstContact, [&] { ++first; });
+
+  int aspects = 0;
+  qreal lastAspect = 0;
+  QObject::connect(&s, &TrackpadSource::padAspectChanged, [&](qreal a) { ++aspects; lastAspect = a; });
+  s.aspect(1.6);
+  s.aspect(1.6);
+  s.aspect(0.0);
+  s.aspect(100.0);
+  expect(aspects == 1 && qAbs(lastAspect - 1.6) < 1e-9, "pad aspect reported once; invalid/duplicate ignored");
+  s.aspect(1.4);
+  expect(aspects == 2 && qAbs(lastAspect - 1.4) < 1e-9, "changed pad aspect is reported");
 
   s.feed({C(1, 0.5, 0.5)});
   expect(began == 0, "inactive source ignores contacts");

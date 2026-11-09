@@ -7,7 +7,6 @@
 #include "TrackpadSource.h"
 #ifdef Q_OS_MACOS
 #include "macos/NSTouchCapture.h"
-#include "macos/TrackpadStrokeCapture.h"
 #endif
 
 #include <QCursor>
@@ -43,17 +42,11 @@ DrawingCanvas::DrawingCanvas(QWidget* parent) : QWidget(parent) {
 
   setAttribute(Qt::WA_AcceptTouchEvents, true);
 
-  // HANDWRITING_CAPTURE=qt|mt|ns (ns/mt are macOS only). Default on macOS is ns (public
-  // NSTouch API); mt is the legacy private MultitouchSupport path; qt is the generic path
-  // (Qt does not deliver trackpad touches on macOS, so it is the fallback elsewhere).
-  QString choice = qEnvironmentVariable("HANDWRITING_CAPTURE");
+  // Backend: NSTouch (public AppKit API) on macOS; Qt touch events elsewhere. Override with
+  // HANDWRITING_CAPTURE=qt|ns. Qt does not deliver trackpad touches on macOS, so it is the
+  // generic fallback only.
 #ifdef Q_OS_MACOS
-  if (choice.isEmpty()) {
-    choice = QStringLiteral("ns");
-  }
-  if (choice == QStringLiteral("mt")) {
-    trackpadCapture_ = new TrackpadStrokeCapture(this);
-  } else if (choice == QStringLiteral("ns")) {
+  if (qEnvironmentVariable("HANDWRITING_CAPTURE") != QStringLiteral("qt")) {
     trackpadCapture_ = new NSTouchCapture(this, this);
   }
 #endif
@@ -62,6 +55,14 @@ DrawingCanvas::DrawingCanvas(QWidget* parent) : QWidget(parent) {
     trackpadCapture_ = qtTouch_;
   }
   qInfo("trackpad capture backend: %s", qPrintable(trackpadCapture_->name()));
+  bool aspectOk = false;
+  const qreal forced = qEnvironmentVariable("HANDWRITING_PAD_ASPECT").toDouble(&aspectOk);
+  if (aspectOk && forced > 0.0) {
+    padAspect_ = forced;
+    padAspectFixed_ = true;
+  }
+  connect(trackpadCapture_, &TrackpadSource::padAspectChanged, this,
+          &DrawingCanvas::onPadAspectChanged);
   connect(trackpadCapture_, &TrackpadSource::firstContact, this,
           &DrawingCanvas::onTrackpadFirstContact);
   connect(trackpadCapture_, &TrackpadSource::strokeBegan, this,
@@ -134,6 +135,26 @@ void DrawingCanvas::setCursorFrozen(bool frozen) {
   cursor_freeze::set(frozen);
 }
 
+void DrawingCanvas::onPadAspectChanged(qreal aspect) {
+  if (padAspectFixed_ || qAbs(aspect - padAspect_) < 0.005) {
+    return;
+  }
+  // Keep existing ink where it is relative to the (resized) surface.
+  const int oldW = surfaceWidth();
+  padAspect_ = aspect;
+  const qreal ratio = static_cast<qreal>(surfaceWidth()) / oldW;
+  auto rescale = [&](Stroke& st) {
+    for (StrokePoint& p : st) {
+      p.x = qBound(0, static_cast<int>(p.x * ratio + 0.5), surfaceWidth() - 1);
+    }
+  };
+  for (Stroke& st : strokes_) {
+    rescale(st);
+  }
+  rescale(currentStroke_);
+  update();
+}
+
 void DrawingCanvas::onTrackpadFirstContact() {
   // Absolute touches are flowing: stop finger movement from dragging the pointer around.
   if (holdToWrite_) {
@@ -181,19 +202,8 @@ void DrawingCanvas::updateTracking() {
   setMouseTracking(holdToWrite_ || drawSource_ == DrawSource::ClickDrag);
 }
 
-namespace {
-qreal padAspect() {
-  static const qreal aspect = []() {
-    bool ok = false;
-    const qreal v = qEnvironmentVariable("HANDWRITING_PAD_ASPECT").toDouble(&ok);
-    return (ok && v > 0.0) ? v : stroke_mapping::kDefaultTrackpadAspect;
-  }();
-  return aspect;
-}
-}  // namespace
-
 int DrawingCanvas::surfaceWidth() const {
-  return stroke_mapping::surfaceWidthFor(surfaceHeight(), padAspect());
+  return stroke_mapping::surfaceWidthFor(surfaceHeight(), padAspect_);
 }
 
 QRectF DrawingCanvas::surfaceRect() const {

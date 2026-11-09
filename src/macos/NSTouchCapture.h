@@ -9,7 +9,7 @@ class QWidget;
 // macOS backend using public AppKit API: indirect NSTouch contacts delivered as
 // gesture events to the host window, read with a local NSEvent monitor.
 // normalizedPosition is the absolute finger position on the pad (0-1).
-// No private frameworks. Select with HANDWRITING_CAPTURE=ns.
+// No private frameworks. Also reports the pad's real aspect (NSTouch.deviceSize).
 class NSTouchCapture : public TrackpadSource {
   Q_OBJECT
 

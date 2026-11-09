@@ -15,7 +15,7 @@ Q_DECLARE_METATYPE(QVector<TrackpadContact>)
 
 // Platform-independent source of absolute trackpad finger positions.
 //
-// Backends (Qt touch events, macOS MultitouchSupport, later Linux evdev and
+// Backends (macOS NSTouch, generic Qt touch events, later Linux evdev and
 // Windows Raw Input) only translate their native data into contact lists and
 // call processContacts(). Stroke begin/move/end semantics, finger tracking by
 // identifier, and palm handling live here so every platform behaves the same.
@@ -38,6 +38,9 @@ class TrackpadSource : public QObject {
   void strokeMoved(QPointF normalized);
   void strokeEnded();
   void firstContact();  // first contact since activation
+  // Physical pad width/height, when the backend can tell. Emitted before the contact
+  // it was learned from is processed.
+  void padAspectChanged(qreal aspect);
 
  protected:
   // Backend hooks. startBackend() returns false if the device cannot be used.
@@ -47,9 +50,12 @@ class TrackpadSource : public QObject {
   // Feed the currently touching contacts (empty = all fingers lifted).
   void processContacts(const QVector<TrackpadContact>& contacts);
 
+  void reportPadAspect(qreal aspect);  // call with width/height; ignores invalid values
+
   bool available_ = true;
 
  private:
+  qreal reportedAspect_ = 0.0;
   bool active_ = false;
   bool receivedContact_ = false;
   bool touching_ = false;

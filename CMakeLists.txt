@@ -59,7 +59,6 @@ set(HANDWRITING_APP_SOURCES
 if(APPLE)
   enable_language(OBJCXX)
   list(APPEND HANDWRITING_APP_SOURCES
-    src/macos/TrackpadStrokeCapture.mm
     src/macos/NSTouchCapture.mm
     src/macos/CursorFreeze.mm
   )
@@ -77,7 +76,7 @@ if(APPLE)
     "-framework AppKit"
     "-framework CoreFoundation"
   )
-  set_source_files_properties(src/macos/TrackpadStrokeCapture.mm src/macos/NSTouchCapture.mm PROPERTIES
+  set_source_files_properties(src/macos/NSTouchCapture.mm PROPERTIES
     COMPILE_FLAGS "-fobjc-arc"
   )
 endif()
