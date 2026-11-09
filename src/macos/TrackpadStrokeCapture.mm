@@ -1,7 +1,6 @@
 #import "TrackpadStrokeCapture.h"
 
 #import <AppKit/AppKit.h>
-#import <ApplicationServices/ApplicationServices.h>
 #import <CoreFoundation/CoreFoundation.h>
 #import <dlfcn.h>
 
@@ -136,18 +135,8 @@ int contactCallback(int device, MTTouch* touches, int numTouches, double timesta
 
 }  // namespace
 
-TrackpadStrokeCapture::TrackpadStrokeCapture(QObject* parent) : QObject(parent) {
+TrackpadStrokeCapture::TrackpadStrokeCapture(QObject* parent) : TrackpadSource(parent) {
   available_ = loadMultitouchSymbols();
-  qRegisterMetaType<QVector<TrackpadContact>>("QVector<TrackpadContact>");
-}
-
-void TrackpadStrokeCapture::setCursorFrozen(bool frozen) {
-  if (frozen == cursorFrozen_) {
-    return;
-  }
-  cursorFrozen_ = frozen;
-  // Detached: pointer stays put while trackpad/mouse deltas are ignored.
-  CGAssociateMouseAndMouseCursorPosition(frozen ? false : true);
 }
 
 TrackpadStrokeCapture::~TrackpadStrokeCapture() {
@@ -209,102 +198,32 @@ void TrackpadStrokeCapture::stopDevices() {
   }
 }
 
-void TrackpadStrokeCapture::setActive(bool active) {
-  if (active == active_) {
-    return;
+bool TrackpadStrokeCapture::startBackend() {
+  ensureDevicesStarted();
+  if (!available_) {
+    return false;
   }
+  // New generation invalidates any in-flight queued callbacks.
+  generation_ += 1;
+  gActiveGeneration.store(generation_, std::memory_order_release);
+  gActiveCapture.store(this, std::memory_order_release);
+  return true;
+}
 
-  if (active) {
-    ensureDevicesStarted();
-    if (!available_) {
-      active_ = false;
-      return;
-    }
-    // New generation invalidates any in-flight queued callbacks.
-    const quint64 gen = generation_ + 1;
-    generation_ = gen;
-    receivedContact_ = false;
-    touching_ = false;
-    activeFingerId_ = -1;
-    awaitingLift_ = false;
-    active_ = true;
-    gActiveGeneration.store(gen, std::memory_order_release);
-    gActiveCapture.store(this, std::memory_order_release);
-    return;
-  }
-
-  // Deactivate: clear global pointer first so the MT thread stops targeting us,
-  // then bump generation so already-queued invokes are ignored.
+void TrackpadStrokeCapture::stopBackend() {
+  // Clear the global pointer first so the MT thread stops targeting us, then bump the
+  // generation so already-queued invokes are ignored.
   if (gActiveCapture.load(std::memory_order_relaxed) == this) {
     gActiveCapture.store(nullptr, std::memory_order_release);
   }
   ++generation_;
   gActiveGeneration.store(generation_, std::memory_order_release);
-
-  setCursorFrozen(false);
-  const bool wasTouching = touching_;
-  touching_ = false;
-  activeFingerId_ = -1;
-  receivedContact_ = false;
-  active_ = false;
-
-  if (wasTouching) {
-    emit strokeEnded();
-  }
 }
 
 void TrackpadStrokeCapture::onContacts(quint64 generation,
                                        const QVector<TrackpadContact>& contacts) {
-  if (!active_ || generation != generation_) {
+  if (generation != generation_) {
     return;
   }
-
-  if (contacts.isEmpty()) {
-    awaitingLift_ = false;
-    if (touching_) {
-      touching_ = false;
-      activeFingerId_ = -1;
-      emit strokeEnded();
-    }
-    return;
-  }
-
-  if (!receivedContact_) {
-    receivedContact_ = true;
-    setCursorFrozen(true);
-  }
-  if (awaitingLift_) {
-    return;
-  }
-
-  const TrackpadContact* chosen = nullptr;
-  if (touching_ && activeFingerId_ >= 0) {
-    for (const TrackpadContact& c : contacts) {
-      if (c.identifier == activeFingerId_) {
-        chosen = &c;
-        break;
-      }
-    }
-  }
-  if (chosen == nullptr) {
-    // New stroke or tracked finger gone: pick the first contact.
-    if (touching_) {
-      // Tracked finger lifted while another contact (likely a palm) remains:
-      // end the stroke and ignore everything until the pad is fully clear.
-      touching_ = false;
-      activeFingerId_ = -1;
-      awaitingLift_ = true;
-      emit strokeEnded();
-      return;
-    }
-    chosen = &contacts.first();
-  }
-
-  if (!touching_) {
-    touching_ = true;
-    activeFingerId_ = chosen->identifier;
-    emit strokeBegan(chosen->normalized);
-  } else {
-    emit strokeMoved(chosen->normalized);
-  }
+  processContacts(contacts);
 }

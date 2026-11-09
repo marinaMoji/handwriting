@@ -2,7 +2,13 @@
 
 #include "HoldKey.h"
 #include "StrokeMapping.h"
+#include "CursorFreeze.h"
+#include "QtTouchCapture.h"
+#include "TrackpadSource.h"
+#ifdef Q_OS_MACOS
+#include "macos/NSTouchCapture.h"
 #include "macos/TrackpadStrokeCapture.h"
+#endif
 
 #include <QCursor>
 #include <QEvent>
@@ -11,6 +17,7 @@
 #include <QPainter>
 #include <QResizeEvent>
 #include <QTimer>
+#include <QTouchEvent>
 #include <QWindow>
 
 namespace {
@@ -34,12 +41,34 @@ DrawingCanvas::DrawingCanvas(QWidget* parent) : QWidget(parent) {
     }
   });
 
-  trackpadCapture_ = new TrackpadStrokeCapture(this);
-  connect(trackpadCapture_, &TrackpadStrokeCapture::strokeBegan, this,
+  setAttribute(Qt::WA_AcceptTouchEvents, true);
+
+  // HANDWRITING_CAPTURE=qt|mt|ns (ns/mt are macOS only). Default on macOS is ns (public
+  // NSTouch API); mt is the legacy private MultitouchSupport path; qt is the generic path
+  // (Qt does not deliver trackpad touches on macOS, so it is the fallback elsewhere).
+  QString choice = qEnvironmentVariable("HANDWRITING_CAPTURE");
+#ifdef Q_OS_MACOS
+  if (choice.isEmpty()) {
+    choice = QStringLiteral("ns");
+  }
+  if (choice == QStringLiteral("mt")) {
+    trackpadCapture_ = new TrackpadStrokeCapture(this);
+  } else if (choice == QStringLiteral("ns")) {
+    trackpadCapture_ = new NSTouchCapture(this, this);
+  }
+#endif
+  if (trackpadCapture_ == nullptr) {
+    qtTouch_ = new QtTouchCapture(this);
+    trackpadCapture_ = qtTouch_;
+  }
+  qInfo("trackpad capture backend: %s", qPrintable(trackpadCapture_->name()));
+  connect(trackpadCapture_, &TrackpadSource::firstContact, this,
+          &DrawingCanvas::onTrackpadFirstContact);
+  connect(trackpadCapture_, &TrackpadSource::strokeBegan, this,
           &DrawingCanvas::onTrackpadStrokeBegan);
-  connect(trackpadCapture_, &TrackpadStrokeCapture::strokeMoved, this,
+  connect(trackpadCapture_, &TrackpadSource::strokeMoved, this,
           &DrawingCanvas::onTrackpadStrokeMoved);
-  connect(trackpadCapture_, &TrackpadStrokeCapture::strokeEnded, this,
+  connect(trackpadCapture_, &TrackpadSource::strokeEnded, this,
           &DrawingCanvas::onTrackpadStrokeEnded);
 }
 
@@ -93,6 +122,42 @@ void DrawingCanvas::beginHoldToWrite() {
   emit holdToWriteChanged(true);
 }
 
+DrawingCanvas::~DrawingCanvas() {
+  setCursorFrozen(false);
+}
+
+void DrawingCanvas::setCursorFrozen(bool frozen) {
+  if (frozen == cursorFrozen_) {
+    return;
+  }
+  cursorFrozen_ = frozen;
+  cursor_freeze::set(frozen);
+}
+
+void DrawingCanvas::onTrackpadFirstContact() {
+  // Absolute touches are flowing: stop finger movement from dragging the pointer around.
+  if (holdToWrite_) {
+    setCursorFrozen(true);
+  }
+}
+
+bool DrawingCanvas::event(QEvent* e) {
+  switch (e->type()) {
+    case QEvent::TouchBegin:
+    case QEvent::TouchUpdate:
+    case QEvent::TouchEnd:
+    case QEvent::TouchCancel:
+      if (qtTouch_ != nullptr && qtTouch_->handleTouchEvent(static_cast<QTouchEvent*>(e))) {
+        e->accept();
+        return true;
+      }
+      break;
+    default:
+      break;
+  }
+  return QWidget::event(e);
+}
+
 void DrawingCanvas::endHoldToWrite() {
   if (!holdToWrite_) {
     return;
@@ -106,6 +171,7 @@ void DrawingCanvas::endHoldToWrite() {
   if (trackpadCapture_) {
     trackpadCapture_->setActive(false);
   }
+  setCursorFrozen(false);
   updateTracking();
   update();
   emit holdToWriteChanged(false);

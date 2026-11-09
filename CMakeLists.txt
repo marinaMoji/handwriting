@@ -51,13 +51,18 @@ set(HANDWRITING_APP_SOURCES
   src/MainWindow.cpp
   src/DrawingCanvas.cpp
   src/CandidatePanel.cpp
+  src/TrackpadSource.cpp
+  src/QtTouchCapture.cpp
+  src/CursorFreeze.cpp
 )
 
 if(APPLE)
   enable_language(OBJCXX)
-  list(APPEND HANDWRITING_APP_SOURCES src/macos/TrackpadStrokeCapture.mm)
-else()
-  list(APPEND HANDWRITING_APP_SOURCES src/macos/TrackpadStrokeCaptureStub.cpp)
+  list(APPEND HANDWRITING_APP_SOURCES
+    src/macos/TrackpadStrokeCapture.mm
+    src/macos/NSTouchCapture.mm
+    src/macos/CursorFreeze.mm
+  )
 endif()
 
 add_executable(handwriting_app ${HANDWRITING_APP_SOURCES})
@@ -72,7 +77,7 @@ if(APPLE)
     "-framework AppKit"
     "-framework CoreFoundation"
   )
-  set_source_files_properties(src/macos/TrackpadStrokeCapture.mm PROPERTIES
+  set_source_files_properties(src/macos/TrackpadStrokeCapture.mm src/macos/NSTouchCapture.mm PROPERTIES
     COMPILE_FLAGS "-fobjc-arc"
   )
 endif()
@@ -92,3 +97,11 @@ target_include_directories(stroke_mapping_test PRIVATE ${CMAKE_CURRENT_SOURCE_DI
 target_link_libraries(stroke_mapping_test PRIVATE Qt6::Core Qt6::Gui handwriting_backend)
 enable_testing()
 add_test(NAME stroke_mapping_test COMMAND stroke_mapping_test)
+
+add_executable(trackpad_source_test
+  tests/trackpad_source_test.cpp
+  src/TrackpadSource.cpp
+)
+target_include_directories(trackpad_source_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_libraries(trackpad_source_test PRIVATE Qt6::Core)
+add_test(NAME trackpad_source_test COMMAND trackpad_source_test)
