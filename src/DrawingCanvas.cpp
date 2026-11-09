@@ -327,6 +327,12 @@ void DrawingCanvas::onTrackpadStrokeMoved(QPointF normalized) {
   }
   if (drawSource_ != DrawSource::HoldToWrite) {
     startStroke(point, DrawSource::HoldToWrite);
+  } else if (!currentStroke_.isEmpty() &&
+             stroke_mapping::isHoldJump(currentStroke_.last(), point, kHoldJumpThreshold)) {
+    // Belt-and-suspenders with TrackpadSource jump splitting: if a lift was
+    // missed and we only see a teleporting move, still break the line.
+    finishStroke();
+    startStroke(point, DrawSource::HoldToWrite);
   } else {
     appendPoint(point);
   }

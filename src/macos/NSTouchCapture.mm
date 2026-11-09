@@ -67,6 +67,16 @@ void NSTouchCapture::handleGestureEvent(void* nsEvent) {
     if (touch.type != NSTouchTypeIndirect) {
       continue;
     }
+    // Resting contacts (thumb on the bottom of the pad, etc.) stay in the
+    // Touching set after the writing finger lifts. Including them kept the
+    // stroke open so the next finger-down continued the previous line.
+    if (touch.resting) {
+      if (debug) {
+        qInfo("nstouch skip resting identity=%lu",
+              static_cast<unsigned long>([touch.identity hash]));
+      }
+      continue;
+    }
     const quint64 key = static_cast<quint64>([touch.identity hash]);
     auto it = ids_.find(key);
     if (it == ids_.end()) {
@@ -78,7 +88,10 @@ void NSTouchCapture::handleGestureEvent(void* nsEvent) {
     TrackpadContact c;
     c.identifier = it.value();
     // normalizedPosition origin is bottom-left; Qt/our contract is top-left.
-    c.normalized = QPointF(touch.normalizedPosition.x, 1.0 - touch.normalizedPosition.y);
+    // Clamp: some firmwares briefly report slightly outside 0..1 at the edges.
+    const qreal nx = qBound<qreal>(0.0, touch.normalizedPosition.x, 1.0);
+    const qreal ny = qBound<qreal>(0.0, 1.0 - touch.normalizedPosition.y, 1.0);
+    c.normalized = QPointF(nx, ny);
     if (debug) {
       qInfo("nstouch id=%d norm=(%.3f, %.3f) deviceSize=(%.1f, %.1f) resting=%d", c.identifier,
             c.normalized.x(), c.normalized.y(), touch.deviceSize.width, touch.deviceSize.height,

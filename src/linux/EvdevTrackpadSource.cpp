@@ -143,6 +143,8 @@ bool EvdevTrackpadSource::openDevice(const DeviceInfo& info) {
   }
   slots_.fill(SlotState{}, info.slotCount);
   currentSlot_ = 0;
+  hasObserved_ = false;
+  obsXMin_ = obsXMax_ = obsYMin_ = obsYMax_ = 0;
 
   // Prefer physical aspect (device units / resolution) when both axes report it.
   qreal aspect = 0.0;
@@ -340,10 +342,53 @@ void EvdevTrackpadSource::onReadable() {
   }
 }
 
+void EvdevTrackpadSource::noteObservedSample(int x, int y) {
+  if (!hasObserved_) {
+    obsXMin_ = obsXMax_ = x;
+    obsYMin_ = obsYMax_ = y;
+    hasObserved_ = true;
+    return;
+  }
+  obsXMin_ = qMin(obsXMin_, x);
+  obsXMax_ = qMax(obsXMax_, x);
+  obsYMin_ = qMin(obsYMin_, y);
+  obsYMax_ = qMax(obsYMax_, y);
+}
+
+void EvdevTrackpadSource::effectiveAbsRange(int* xMin, int* xMax, int* yMin, int* yMax) const {
+  *xMin = chosen_.absXMin;
+  *xMax = chosen_.absXMax;
+  *yMin = chosen_.absYMin;
+  *yMax = chosen_.absYMax;
+  if (!hasObserved_) {
+    return;
+  }
+  const int absSpanX = qMax(1, chosen_.absXMax - chosen_.absXMin);
+  const int absSpanY = qMax(1, chosen_.absYMax - chosen_.absYMin);
+  const int obsSpanX = obsXMax_ - obsXMin_;
+  const int obsSpanY = obsYMax_ - obsYMin_;
+  // Wait until the finger has covered a meaningful fraction of the advertised
+  // range so a single corner tap does not shrink the map to a point.
+  if (obsSpanX < absSpanX / 5 || obsSpanY < absSpanY / 5) {
+    return;
+  }
+  // Small padding so the finger can still reach the last millimetre of glass.
+  const int padX = qMax(1, obsSpanX / 50);
+  const int padY = qMax(1, obsSpanY / 50);
+  *xMin = qMax(chosen_.absXMin, obsXMin_ - padX);
+  *xMax = qMin(chosen_.absXMax, obsXMax_ + padX);
+  *yMin = qMax(chosen_.absYMin, obsYMin_ - padY);
+  *yMax = qMin(chosen_.absYMax, obsYMax_ + padY);
+  if (*xMax <= *xMin || *yMax <= *yMin) {
+    *xMin = chosen_.absXMin;
+    *xMax = chosen_.absXMax;
+    *yMin = chosen_.absYMin;
+    *yMax = chosen_.absYMax;
+  }
+}
+
 void EvdevTrackpadSource::handleSynReport() {
   QVector<TrackpadContact> contacts;
-  const qreal xSpan = qMax(1, chosen_.absXMax - chosen_.absXMin);
-  const qreal ySpan = qMax(1, chosen_.absYMax - chosen_.absYMin);
   for (const SlotState& slot : slots_) {
     if (slot.trackingId < 0) {
       continue;
@@ -361,10 +406,15 @@ void EvdevTrackpadSource::handleSynReport() {
         continue;
       }
     }
+    noteObservedSample(slot.x, slot.y);
     TrackpadContact c;
     c.identifier = slot.trackingId;
-    const qreal nx = (slot.x - chosen_.absXMin) / xSpan;
-    const qreal ny = (slot.y - chosen_.absYMin) / ySpan;
+    int xMin = 0, xMax = 1, yMin = 0, yMax = 1;
+    effectiveAbsRange(&xMin, &xMax, &yMin, &yMax);
+    const qreal xSpan = qMax(1, xMax - xMin);
+    const qreal ySpan = qMax(1, yMax - yMin);
+    const qreal nx = (slot.x - xMin) / xSpan;
+    const qreal ny = (slot.y - yMin) / ySpan;
     c.normalized = QPointF(qBound<qreal>(0.0, nx, 1.0), qBound<qreal>(0.0, ny, 1.0));
     contacts.push_back(c);
   }

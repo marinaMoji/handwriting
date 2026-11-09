@@ -57,6 +57,8 @@ class EvdevTrackpadSource : public TrackpadSource {
   void resyncAfterDrop();
   void deviceLost();
   void handleSynReport();
+  void noteObservedSample(int x, int y);
+  void effectiveAbsRange(int* xMin, int* xMax, int* yMin, int* yMax) const;
 
   DeviceInfo chosen_;
   int fd_ = -1;
@@ -66,4 +68,11 @@ class EvdevTrackpadSource : public TrackpadSource {
   bool dropping_ = false;  // discarding events until SYN_REPORT after SYN_DROPPED
   bool probed_ = false;
   bool probeOk_ = false;
+  // Many pads advertise ABS ranges larger than the glass. Learning the span
+  // that fingers actually use removes dead "out of bounds" margins.
+  int obsXMin_ = 0;
+  int obsXMax_ = 0;
+  int obsYMin_ = 0;
+  int obsYMax_ = 0;
+  bool hasObserved_ = false;
 };

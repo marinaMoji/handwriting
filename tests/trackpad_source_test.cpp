@@ -65,9 +65,18 @@ int main(int argc, char** argv) {
   s.feed({C(4, 0.3, 0.3)});
   expect(began == 3, "new stroke after full lift");
 
+  // Missed empty frame: same id teleports — treat as end + new stroke.
+  s.feed({C(4, 0.35, 0.3)});
+  expect(moved >= 1, "small move stays on same stroke");
+  const int beganBeforeJump = began;
+  const int endedBeforeJump = ended;
+  s.feed({C(4, 0.9, 0.9)});
+  expect(began == beganBeforeJump + 1 && ended == endedBeforeJump + 1,
+         "large jump with same id starts a new stroke");
+
   // Deactivating mid-stroke ends it.
   s.setActive(false);
-  expect(ended == 3, "deactivate ends in-progress stroke");
+  expect(ended == endedBeforeJump + 2, "deactivate ends in-progress stroke");
   expect(!s.hasReceivedContact(), "contact flag reset on deactivate");
 
   QTextStream(stdout) << (failures == 0 ? "All trackpad_source tests passed.\n" : "Some tests failed.\n");
