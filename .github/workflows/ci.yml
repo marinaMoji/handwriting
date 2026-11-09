@@ -45,3 +45,49 @@ jobs:
 
       - name: Test
         run: ctest --test-dir build -C Release --output-on-failure
+
+  eval:
+    name: recognition eval (synthetic)
+    runs-on: ubuntu-latest
+    needs: build
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: 6.8.*
+          cache: true
+
+      - name: Linux system packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgl1-mesa-dev libxkbcommon-dev libx11-dev libxcb-cursor0
+
+      - name: Cache models
+        uses: actions/cache@v4
+        with:
+          path: models_dl
+          key: tegaki-models-0.3
+
+      - name: Fetch models
+        run: bash scripts/fetch_models.sh
+
+      - name: Build eval tool
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --target handwriting_eval --parallel
+
+      - name: Run eval
+        run: |
+          ./build/handwriting_eval --models models --synthetic 10 --modes ja,tw,both \
+            --variants raw,resample:4+smooth:3 --csv eval.csv | tee eval.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: eval-results
+          path: |
+            eval.txt
+            eval.csv
