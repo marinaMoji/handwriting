@@ -10,6 +10,8 @@
 
 # Locally collected handwriting samples (your own data; see tests/ for fixtures)
 /samples/*.json
+/samples-test/*.json
+/samples-textbook/*.json
 
 # Editor / OS
 .DS_Store
