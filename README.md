@@ -159,6 +159,15 @@ macOS absolute input uses public AppKit APIs only. Linux needs device-node permi
 - **Replay**: `./build/handwriting_eval --samples samples --models models --modes ja,tw,both --variants raw,fit` prints top-1/5/10, MRR and latency. `--synthetic N` adds generated ink; see `--help` options (`--misses`, `--csv`, ...).
 - **Preprocessing**: strokes are resampled and smoothed before recognition (default `resample:4+smooth:3`). Override with `HANDWRITING_PREPROCESS`, e.g. `none`, `rdp:3`, `smooth:2`.
 - **Unit tests**: `ctest --test-dir build` runs stroke mapping, trackpad source, PTP frame assembly, stroke preprocessing, sample I/O and the Linux slot tracker (`MtSlotTracker`, testable on any OS).
+- **Linux evdev fixture** (issue #4): `evdev_uinput_test` creates a virtual type-B pad via `/dev/uinput`, plays scripted strokes (including palm handoff, `SYN_DROPPED`, unplug/re-probe) and checks `EvdevTrackpadSource`. Needs write access to `/dev/uinput`; without it the test is **skipped** (exit 77) so CI stays green. On a VM/machine:
+
+  ```bash
+  # one-shot for a local run (or install a udev rule for persistent access)
+  sudo chmod a+rw /dev/uinput
+  ctest --test-dir build -R evdev_uinput_test --output-on-failure
+  # optional: pin a node when debugging a real pad
+  # HANDWRITING_EVDEV_DEVICE=/dev/input/event8 ./build/handwriting_app
+  ```
 
 ## Out of scope
 

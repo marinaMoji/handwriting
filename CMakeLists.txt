@@ -183,3 +183,23 @@ add_test(NAME kanjivg_test COMMAND kanjivg_test)
 add_executable(fusion_test tests/fusion_test.cpp)
 target_link_libraries(fusion_test PRIVATE handwriting_backend)
 add_test(NAME fusion_test COMMAND fusion_test)
+
+# --- Linux evdev ↔ uinput integration (issue #4) -----------------------------
+# Needs write access to /dev/uinput. Skips (ctest code 77) when unavailable so
+# unprivileged CI stays green; run locally/VM after: sudo chmod a+rw /dev/uinput
+# (or a udev rule). See README "Evaluation and tests".
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  add_executable(evdev_uinput_test
+    tests/linux/evdev_uinput_test.cpp
+    src/TrackpadSource.cpp
+    src/MtSlotTracker.cpp
+    src/linux/EvdevTrackpadSource.cpp
+  )
+  target_include_directories(evdev_uinput_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/linux
+  )
+  target_link_libraries(evdev_uinput_test PRIVATE Qt6::Core)
+  add_test(NAME evdev_uinput_test COMMAND evdev_uinput_test)
+  set_tests_properties(evdev_uinput_test PROPERTIES SKIP_RETURN_CODE 77)
+endif()

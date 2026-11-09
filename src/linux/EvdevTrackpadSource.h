@@ -46,6 +46,7 @@ class EvdevTrackpadSource : public TrackpadSource {
   };
 
   static QVector<DeviceInfo> discoverDevices();
+  static bool probeDeviceAt(const QString& path, DeviceInfo* out, int* deniedCount);
   bool openDevice(const DeviceInfo& info);
   void loadInitialSlots();
   void resyncAfterDrop();

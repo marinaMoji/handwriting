@@ -43,6 +43,96 @@ EvdevTrackpadSource::~EvdevTrackpadSource() {
   setActive(false);
 }
 
+bool EvdevTrackpadSource::probeDeviceAt(const QString& path, DeviceInfo* out, int* deniedCount) {
+  static const bool debug = qEnvironmentVariableIsSet("HANDWRITING_DEBUG_TOUCH");
+  const int fd = ::open(path.toLocal8Bit().constData(), O_RDONLY | O_NONBLOCK);
+  if (fd < 0) {
+    if (deniedCount != nullptr && (errno == EACCES || errno == EPERM)) {
+      ++(*deniedCount);
+    }
+    if (debug) {
+      qInfo("evdev: skip %s (%s)", qPrintable(path), std::strerror(errno));
+    }
+    return false;
+  }
+
+  unsigned long absBits[(ABS_CNT + 63) / 64] = {};
+  unsigned long propBits[(INPUT_PROP_CNT + 63) / 64] = {};
+  unsigned long keyBits[(KEY_CNT + 63) / 64] = {};
+  if (ioctl(fd, EVIOCGBIT(EV_ABS, sizeof(absBits)), absBits) < 0) {
+    ::close(fd);
+    return false;
+  }
+  ioctl(fd, EVIOCGPROP(sizeof(propBits)), propBits);
+  ioctl(fd, EVIOCGBIT(EV_KEY, sizeof(keyBits)), keyBits);
+
+  const bool hasMt =
+      testBit(ABS_MT_POSITION_X, absBits) && testBit(ABS_MT_POSITION_Y, absBits);
+  // Type B only: without ABS_MT_SLOT, slot protocol assumptions break.
+  const bool hasSlot = testBit(ABS_MT_SLOT, absBits);
+  const bool looksLikePad = testBit(INPUT_PROP_POINTER, propBits) ||
+                            testBit(BTN_TOOL_FINGER, keyBits) || testBit(BTN_TOUCH, keyBits);
+  const bool isDirect = testBit(INPUT_PROP_DIRECT, propBits);
+  char name[256] = {};
+  if (ioctl(fd, EVIOCGNAME(sizeof(name)), name) < 0) {
+    std::snprintf(name, sizeof(name), "%s", qPrintable(path));
+  }
+  if (!hasMt || !hasSlot || !looksLikePad || isDirect) {
+    if (debug) {
+      qInfo("evdev: reject %s (%s) mt=%d slot=%d pad=%d direct=%d", qPrintable(path), name,
+            int(hasMt), int(hasSlot), int(looksLikePad), int(isDirect));
+    }
+    ::close(fd);
+    return false;
+  }
+
+  DeviceInfo info;
+  info.path = path;
+  info.name = QString::fromLocal8Bit(name);
+
+  input_absinfo absX = {};
+  input_absinfo absY = {};
+  if (ioctl(fd, EVIOCGABS(ABS_MT_POSITION_X), &absX) < 0 ||
+      ioctl(fd, EVIOCGABS(ABS_MT_POSITION_Y), &absY) < 0 || absX.maximum <= absX.minimum ||
+      absY.maximum <= absY.minimum) {
+    ::close(fd);
+    return false;
+  }
+  info.absXMin = absX.minimum;
+  info.absXMax = absX.maximum;
+  info.absYMin = absY.minimum;
+  info.absYMax = absY.maximum;
+  info.resX = absX.resolution;
+  info.resY = absY.resolution;
+
+  input_absinfo absSlot = {};
+  if (ioctl(fd, EVIOCGABS(ABS_MT_SLOT), &absSlot) < 0) {
+    ::close(fd);
+    return false;
+  }
+  info.slotCount = qMax(1, absSlot.maximum + 1);
+
+  info.hasToolType = testBit(ABS_MT_TOOL_TYPE, absBits);
+  info.hasBtnTouch = testBit(BTN_TOUCH, keyBits);
+  info.hasBtnToolFinger = testBit(BTN_TOOL_FINGER, keyBits);
+  if (testBit(ABS_MT_PRESSURE, absBits)) {
+    input_absinfo absP = {};
+    if (ioctl(fd, EVIOCGABS(ABS_MT_PRESSURE), &absP) >= 0) {
+      info.hasPressure = true;
+      info.pressureMin = absP.minimum;
+      info.pressureMax = absP.maximum;
+    }
+  }
+
+  ::close(fd);
+  if (debug) {
+    qInfo("evdev: candidate %s (%s) absX=[%d,%d] absY=[%d,%d]", qPrintable(info.path),
+          qPrintable(info.name), info.absXMin, info.absXMax, info.absYMin, info.absYMax);
+  }
+  *out = info;
+  return true;
+}
+
 bool EvdevTrackpadSource::isAvailable() const {
   if (probed_) {
     return probeOk_;
@@ -55,9 +145,13 @@ bool EvdevTrackpadSource::isAvailable() const {
     self->chosen_ = devices.first();
     for (const DeviceInfo& d : devices) {
       const QString n = d.name.toLower();
-      if (n.contains(QStringLiteral("touchpad")) || n.contains(QStringLiteral("trackpad"))) {
+      // Prefer the uinput integration fixture when present, then any touchpad.
+      if (n.contains(QStringLiteral("handwriting-uinput-fixture"))) {
         self->chosen_ = d;
         break;
+      }
+      if (n.contains(QStringLiteral("touchpad")) || n.contains(QStringLiteral("trackpad"))) {
+        self->chosen_ = d;
       }
     }
   }
@@ -67,6 +161,41 @@ bool EvdevTrackpadSource::isAvailable() const {
 
 QVector<EvdevTrackpadSource::DeviceInfo> EvdevTrackpadSource::discoverDevices() {
   QVector<DeviceInfo> out;
+  int denied = 0;
+
+  // Tests / debugging: pin a single node (e.g. a uinput fixture).
+  const QString forced = qEnvironmentVariable("HANDWRITING_EVDEV_DEVICE");
+  if (!forced.isEmpty()) {
+    DeviceInfo info;
+    if (probeDeviceAt(forced, &info, &denied)) {
+      out.push_back(info);
+    } else {
+      const int fd = ::open(forced.toLocal8Bit().constData(), O_RDONLY | O_NONBLOCK);
+      if (fd < 0) {
+        qWarning("evdev: HANDWRITING_EVDEV_DEVICE=%s: open failed (%s)", qPrintable(forced),
+                 std::strerror(errno));
+      } else {
+        unsigned long absBits[(ABS_CNT + 63) / 64] = {};
+        unsigned long propBits[(INPUT_PROP_CNT + 63) / 64] = {};
+        unsigned long keyBits[(KEY_CNT + 63) / 64] = {};
+        ioctl(fd, EVIOCGBIT(EV_ABS, sizeof(absBits)), absBits);
+        ioctl(fd, EVIOCGPROP(sizeof(propBits)), propBits);
+        ioctl(fd, EVIOCGBIT(EV_KEY, sizeof(keyBits)), keyBits);
+        char name[256] = {};
+        ioctl(fd, EVIOCGNAME(sizeof(name)), name);
+        qWarning("evdev: HANDWRITING_EVDEV_DEVICE=%s (%s) rejected: mt=%d slot=%d "
+                 "btnTouch=%d toolFinger=%d pointerProp=%d direct=%d",
+                 qPrintable(forced), name,
+                 int(testBit(ABS_MT_POSITION_X, absBits) && testBit(ABS_MT_POSITION_Y, absBits)),
+                 int(testBit(ABS_MT_SLOT, absBits)), int(testBit(BTN_TOUCH, keyBits)),
+                 int(testBit(BTN_TOOL_FINGER, keyBits)), int(testBit(INPUT_PROP_POINTER, propBits)),
+                 int(testBit(INPUT_PROP_DIRECT, propBits)));
+        ::close(fd);
+      }
+    }
+    return out;
+  }
+
   // Prefer POSIX readdir over QDir::System: device nodes in /dev/input have been
   // easy to miss with Qt filters depending on version/platform.
   DIR* dir = ::opendir("/dev/input");
@@ -74,8 +203,6 @@ QVector<EvdevTrackpadSource::DeviceInfo> EvdevTrackpadSource::discoverDevices() 
     qWarning("evdev: cannot open /dev/input (%s)", std::strerror(errno));
     return out;
   }
-  static const bool debug = qEnvironmentVariableIsSet("HANDWRITING_DEBUG_TOUCH");
-  int denied = 0;
   while (true) {
     errno = 0;
     dirent* ent = ::readdir(dir);
@@ -86,93 +213,10 @@ QVector<EvdevTrackpadSource::DeviceInfo> EvdevTrackpadSource::discoverDevices() 
     if (!node.startsWith(QStringLiteral("event"))) {
       continue;
     }
-    const QString path = QStringLiteral("/dev/input/") + node;
-    const int fd = ::open(path.toLocal8Bit().constData(), O_RDONLY | O_NONBLOCK);
-    if (fd < 0) {
-      if (errno == EACCES || errno == EPERM) {
-        ++denied;
-      }
-      if (debug) {
-        qInfo("evdev: skip %s (%s)", qPrintable(path), std::strerror(errno));
-      }
-      continue;
-    }
-
-    unsigned long absBits[(ABS_CNT + 63) / 64] = {};
-    unsigned long propBits[(INPUT_PROP_CNT + 63) / 64] = {};
-    unsigned long keyBits[(KEY_CNT + 63) / 64] = {};
-    if (ioctl(fd, EVIOCGBIT(EV_ABS, sizeof(absBits)), absBits) < 0) {
-      ::close(fd);
-      continue;
-    }
-    ioctl(fd, EVIOCGPROP(sizeof(propBits)), propBits);
-    ioctl(fd, EVIOCGBIT(EV_KEY, sizeof(keyBits)), keyBits);
-
-    const bool hasMt =
-        testBit(ABS_MT_POSITION_X, absBits) && testBit(ABS_MT_POSITION_Y, absBits);
-    // Type B only: without ABS_MT_SLOT, slot protocol assumptions break.
-    const bool hasSlot = testBit(ABS_MT_SLOT, absBits);
-    const bool looksLikePad =
-        testBit(INPUT_PROP_POINTER, propBits) || testBit(BTN_TOOL_FINGER, keyBits) ||
-        testBit(BTN_TOUCH, keyBits);
-    const bool isDirect = testBit(INPUT_PROP_DIRECT, propBits);
-    char name[256] = {};
-    if (ioctl(fd, EVIOCGNAME(sizeof(name)), name) < 0) {
-      std::snprintf(name, sizeof(name), "%s", qPrintable(node));
-    }
-    if (!hasMt || !hasSlot || !looksLikePad || isDirect) {
-      if (debug) {
-        qInfo("evdev: reject %s (%s) mt=%d slot=%d pad=%d direct=%d", qPrintable(path), name,
-              int(hasMt), int(hasSlot), int(looksLikePad), int(isDirect));
-      }
-      ::close(fd);
-      continue;
-    }
-
     DeviceInfo info;
-    info.path = path;
-    info.name = QString::fromLocal8Bit(name);
-
-    input_absinfo absX = {};
-    input_absinfo absY = {};
-    if (ioctl(fd, EVIOCGABS(ABS_MT_POSITION_X), &absX) < 0 ||
-        ioctl(fd, EVIOCGABS(ABS_MT_POSITION_Y), &absY) < 0 || absX.maximum <= absX.minimum ||
-        absY.maximum <= absY.minimum) {
-      ::close(fd);
-      continue;
+    if (probeDeviceAt(QStringLiteral("/dev/input/") + node, &info, &denied)) {
+      out.push_back(info);
     }
-    info.absXMin = absX.minimum;
-    info.absXMax = absX.maximum;
-    info.absYMin = absY.minimum;
-    info.absYMax = absY.maximum;
-    info.resX = absX.resolution;
-    info.resY = absY.resolution;
-
-    input_absinfo absSlot = {};
-    if (ioctl(fd, EVIOCGABS(ABS_MT_SLOT), &absSlot) < 0) {
-      ::close(fd);
-      continue;
-    }
-    info.slotCount = qMax(1, absSlot.maximum + 1);
-
-    info.hasToolType = testBit(ABS_MT_TOOL_TYPE, absBits);
-    info.hasBtnTouch = testBit(BTN_TOUCH, keyBits);
-    info.hasBtnToolFinger = testBit(BTN_TOOL_FINGER, keyBits);
-    if (testBit(ABS_MT_PRESSURE, absBits)) {
-      input_absinfo absP = {};
-      if (ioctl(fd, EVIOCGABS(ABS_MT_PRESSURE), &absP) >= 0) {
-        info.hasPressure = true;
-        info.pressureMin = absP.minimum;
-        info.pressureMax = absP.maximum;
-      }
-    }
-
-    ::close(fd);
-    if (debug) {
-      qInfo("evdev: candidate %s (%s) absX=[%d,%d] absY=[%d,%d]", qPrintable(info.path),
-            qPrintable(info.name), info.absXMin, info.absXMax, info.absYMin, info.absYMax);
-    }
-    out.push_back(info);
   }
   ::closedir(dir);
   if (out.isEmpty() && denied > 0) {
