@@ -17,6 +17,10 @@
 #include "StrokePreprocess.h"
 #include "SyntheticCorpus.h"
 #include "KanjiVgCorpus.h"
+#include <QFileInfo>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include "Recognizer.h"
 #include "ZinniaBackend.h"
 
@@ -76,7 +80,7 @@ int main(int argc, char** argv) {
 
   QString samplesDir = QString::fromUtf8(HANDWRITING_DEFAULT_SAMPLES_DIR);
   QString modelDir = QString::fromUtf8(HANDWRITING_DEFAULT_MODEL_DIR);
-  QString csvPath, saveSyntheticDir, kvgPath, kvgChars;
+  QString csvPath, saveSyntheticDir, kvgPath, kvgChars, dumpPath;
   int kvgMax = 0;
   unsigned seed = 1234;
   double tolPenalty = 0.0;
@@ -114,6 +118,7 @@ int main(int argc, char** argv) {
     else if (a == QLatin1String("--kanjivg")) kvgPath = next();
     else if (a == QLatin1String("--kvg-chars")) kvgChars = next();
     else if (a == QLatin1String("--kvg-max")) kvgMax = next().toInt();
+    else if (a == QLatin1String("--dump")) dumpPath = next();
     else if (a == QLatin1String("--keep-specks")) keepSpecks = true;
     else if (a == QLatin1String("--count-weight")) countWeight = next().toDouble();
     else if (a == QLatin1String("--count-band")) countBand = next().toInt();
@@ -167,12 +172,13 @@ int main(int argc, char** argv) {
 
   // Collect samples.
   QVector<Sample> samples;
+  QStringList sampleNames;
   const QStringList files = sample_io::findSamples(samplesDir);
   int skipped = 0;
   for (const QString& f : files) {
     Sample s;
     QString e;
-    if (sample_io::loadSample(f, &s, &e)) samples.push_back(s);
+    if (sample_io::loadSample(f, &s, &e)) { samples.push_back(s); sampleNames << QFileInfo(f).fileName(); }
     else { ++skipped; err << "skip " << f << ": " << e << "\n"; }
   }
   if (charSplit == 0 || charSplit == 1) {
@@ -216,6 +222,7 @@ int main(int argc, char** argv) {
       }
     }
     samples += syn;
+    while (sampleNames.size() < samples.size()) sampleNames << QString();
   }
   if (samples.isEmpty()) {
     err << "No samples. Collect some with the app's \"Save sample\" button"
@@ -245,6 +252,7 @@ int main(int argc, char** argv) {
              .arg(QStringLiteral("top5"), 7).arg(QStringLiteral("top10"), 7)
              .arg(QStringLiteral("mrr"), 6).arg(QStringLiteral("ms"), 6);
 
+  QJsonObject dump;
   for (const QString& variant : variants) {
     // "both" expands to one row per fusion method (plain "both" = interleave).
     QStringList rows;
@@ -260,6 +268,7 @@ int main(int argc, char** argv) {
     for (const QString& m : rows) {
       Stats st;
       Recognizer::Options ropts = optionsFor(variant);
+      if (!dumpPath.isEmpty()) ropts.topN = 30;
       ropts.tolerancePenalty = tolPenalty;
       if (keepSpecks) ropts.dropSpecks = false;
       if (countWeight >= 0.0) ropts.countWeight = countWeight;
@@ -268,13 +277,22 @@ int main(int argc, char** argv) {
         fusion::parse(m.mid(5), &ropts.fusion);
         ropts.fusionParams = fparams;
       }
-      for (const Sample& s : samples) {
+      for (int si = 0; si < samples.size(); ++si) {
+        const Sample& s = samples[si];
         QElapsedTimer t;
         t.start();
         const RecognitionResult r = recognizer.recognize(s.strokes, s.surfaceWidth, s.surfaceHeight,
                                                          modeOf(m.left(m.indexOf('/') < 0 ? m.size() : m.indexOf('/'))),
                                                          ropts);
         st.latencySum += t.nsecsElapsed() / 1e6;
+        if (!dumpPath.isEmpty() && variant == variants.first() && (m == QLatin1String("ja") || m == QLatin1String("tw")) &&
+            !sampleNames[si].isEmpty()) {
+          QJsonArray arr;
+          for (const Candidate& c : r.candidates) arr.append(QJsonArray{c.character, static_cast<double>(c.score)});
+          QJsonObject o = dump.value(sampleNames[si]).toObject();
+          o.insert(m, arr);
+          dump.insert(sampleNames[si], o);
+        }
         const int rank = rankOf(r, s.character);
         ++st.n;
         if (rank == 1) ++st.top1;
@@ -301,6 +319,13 @@ int main(int argc, char** argv) {
       }
     }
     out << "\n";
+  }
+  if (!dumpPath.isEmpty()) {
+    QFile f(dumpPath);
+    if (f.open(QIODevice::WriteOnly)) {
+      f.write(QJsonDocument(dump).toJson(QJsonDocument::Compact));
+      out << "wrote " << dumpPath << " (" << dump.size() << " samples)\n";
+    }
   }
   return 0;
 }
