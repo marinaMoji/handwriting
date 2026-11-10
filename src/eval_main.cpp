@@ -87,6 +87,8 @@ int main(int argc, char** argv) {
   bool keepSpecks = false;
   double countWeight = -1.0;
   int countBand = -1;
+  QString neuralPath, neuralMode = QStringLiteral("hybrid");
+  double neuralWeight = 4.0;
   int charSplit = -1;  // 0/1: keep only samples whose first code point is even/odd
   int synthetic = 0;
   double noise = 1.0;
@@ -122,6 +124,9 @@ int main(int argc, char** argv) {
     else if (a == QLatin1String("--keep-specks")) keepSpecks = true;
     else if (a == QLatin1String("--count-weight")) countWeight = next().toDouble();
     else if (a == QLatin1String("--count-band")) countBand = next().toInt();
+    else if (a == QLatin1String("--neural")) neuralPath = next();
+    else if (a == QLatin1String("--neural-mode")) neuralMode = next();
+    else if (a == QLatin1String("--neural-weight")) neuralWeight = next().toDouble();
     else if (a == QLatin1String("--tol-penalty")) tolPenalty = next().toDouble();
     else if (a == QLatin1String("--char-split")) charSplit = next().toInt();
     else if (a == QLatin1String("--seed")) seed = next().toUInt();
@@ -163,7 +168,15 @@ int main(int argc, char** argv) {
   }
 
   ZinniaBackend backend;
-  const Recognizer recognizer(&backend);
+  ink::InkNet net;
+  if (!neuralPath.isEmpty()) {
+    std::string nerr;
+    if (!net.load(neuralPath.toStdString(), &nerr)) {
+      err << "Failed to load neural weights: " << QString::fromStdString(nerr) << "\n";
+      return 1;
+    }
+  }
+  const Recognizer recognizer(&backend, neuralPath.isEmpty() ? nullptr : &net);
   QString loadError;
   if (!backend.loadModels(modelDir, &loadError)) {
     err << "Failed to load models from " << modelDir << ": " << loadError << "\n";
@@ -273,6 +286,12 @@ int main(int argc, char** argv) {
       if (keepSpecks) ropts.dropSpecks = false;
       if (countWeight >= 0.0) ropts.countWeight = countWeight;
       if (countBand >= 0) ropts.countBand = countBand;
+      if (!neuralPath.isEmpty()) {
+        ropts.neural = neuralMode == QLatin1String("only") ? Recognizer::Options::Neural::Only
+                                                          : neuralMode == QLatin1String("off") ? Recognizer::Options::Neural::Off
+                                                                                              : Recognizer::Options::Neural::Hybrid;
+        ropts.neuralWeight = neuralWeight;
+      }
       if (m.startsWith(QLatin1String("both/"))) {
         fusion::parse(m.mid(5), &ropts.fusion);
         ropts.fusionParams = fparams;

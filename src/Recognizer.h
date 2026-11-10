@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Fusion.h"
+#include "InkNet.h"
 #include "StrokePreprocess.h"
 #include "StrokeVariants.h"
 #include "ZinniaBackend.h"
@@ -31,6 +32,15 @@ class Recognizer {
     int countBand = 1;  // strokes of difference that cost nothing (written order/joins vary)
     int fusionDepth = 20;  // candidates fetched from each model before fusing
     stroke_preprocess::Options preprocess;
+    // Order-free neural recognizer (needs a net passed to the Recognizer; Both mode only).
+    //   Only:   the net's own ranking.
+    //   Hybrid: neural log-probability + neuralWeight * Zinnia score (ja and tw merged by best
+    //           score; a character missing from one list gets that list's worst value).
+    // Measured on 214 real dev samples: +14 top-1, +8 top-5 over Zinnia alone (docs/neural-scope.md).
+    enum class Neural { Off, Only, Hybrid };
+    Neural neural = Neural::Off;
+    double neuralWeight = 4.0;
+    int neuralDepth = 50;  // neural candidates kept before mixing
   };
 
   static constexpr const char* kDefaultPreprocessSpec = "resample:4+smooth:3@merge+split+count";
@@ -42,7 +52,8 @@ class Recognizer {
   // Default options with a preprocessing spec ("none", "rdp:3", "resample:4+smooth:3", ...).
   static bool optionsFromSpec(const QString& spec, Options* out, QString* error = nullptr);
 
-  explicit Recognizer(const ZinniaBackend* backend) : backend_(backend) {}
+  explicit Recognizer(const ZinniaBackend* backend, const ink::InkNet* net = nullptr)
+      : backend_(backend), net_(net) {}
 
   // Everything before the model: returns the strokes and canvas size handed to Zinnia.
   struct Prepared {
@@ -57,5 +68,9 @@ class Recognizer {
                               RecognitionMode mode, const Options& options) const;
 
  private:
+  RecognitionResult recognizeNeural(const QVector<Stroke>& raw, int surfaceWidth, int surfaceHeight,
+                                    const Options& options) const;
+
   const ZinniaBackend* backend_;
+  const ink::InkNet* net_;
 };
