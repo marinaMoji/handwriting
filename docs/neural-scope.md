@@ -120,3 +120,23 @@ Caveats, to be taken seriously:
 - One writer, 214 samples, one training run, one hybrid weight tuned (cross-validated). The held-out set (#18) has not been touched and is still the real test.
 - The synthetic training accuracy is 100% and the augmentation does not look as loose as real handwriting (see `ml/contact_sheet.py`); better augmentation is the most likely way to improve further.
 - Latency, model size and the C++ inference path are unmeasured and unbuilt (M5). Weights are 24 MB in fp32.
+
+## C++ runtime (M5, 2026-11-10)
+
+Built and verified; the Python prototype and the app now share one implementation.
+
+- **Renderer.** PIL's line drawing cannot be reproduced exactly in C++, so training moved to a point-splatting renderer with one spec ([ml/render.py](../ml/render.py), [src/InkNet.cpp](../src/InkNet.cpp)). Python and C++ renders are identical on the fixtures.
+- **Inference.** Hand-written, dependency-free C++ (`ink::InkNet`) reading flat weights from `python -m ml.export RUN FILE` (BatchNorm folded into the convolutions). `tests/ink_net_test.cpp` checks renders and logits against numpy/PyTorch fixtures made by `python -m ml.make_fixtures` (a tiny random-weight net, so CI needs no trained weights): max logit difference about 1e-7.
+- **Integration.** `Recognizer::Options::neural` = Off / Only / Hybrid (Both mode only); hybrid score = neural log-probability + `neuralWeight` (default 4) x Zinnia score. Off by default; the app does not load weights yet. `handwriting_eval --neural FILE [--neural-mode only|hybrid] [--neural-weight W]`.
+- **Result with the C++ path (`base2`, retrained with the new renderer, 20,000 steps, 83 min), 214 dev samples, Both mode:**
+
+| | top-1 | top-5 | top-10 |
+|---|---|---|---|
+| Zinnia (merge+split+count) | 65.0 | 83.6 | 85.5 |
+| Neural only | 65.9 | 81.8 | 84.6 |
+| Hybrid, w = 4 | 80.4 | 91.6 | 92.5 |
+
+  This reproduces the Python prototype (80.8 / 92.1 / 92.5).
+- **Cost (Release build, M1 Pro).** Neural only 69 ms per recognition; hybrid 168 ms (including Zinnia's several readings). Weights 24.6 MB at float32 (not committed; a fetch/packaging step is still to decide).
+- **Re-tuning with more data:** `python -m ml.train NAME` -> `python -m ml.export ml/runs/NAME out.inknet` -> pick `--neural-weight` on the new samples. No code changes.
+- **Not done:** looser augmentation is implemented (`--aug 2`) but not trained or evaluated; adaptive mixing weight; app integration and weight distribution; the held-out set (#18) is untouched.
