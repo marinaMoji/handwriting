@@ -39,7 +39,7 @@ def main():
         if ch in templates:
             for _ in range(6):
                 v = templates[ch][int(rng.integers(len(templates[ch])))]
-                aug.append(render(fit_to_canvas(augment(v, rng)), width=float(rng.uniform(1.4, 2.4)))[0])
+                aug.append(render(fit_to_canvas(augment(v, rng, 1.0, int(os.environ.get("AUG", "1")))), width=float(rng.uniform(1.4, 2.4)))[0])
         while len(aug) < 6:
             aug.append(np.zeros((64, 64), np.uint8))
         rows.append(np.concatenate(cells + [sep] + aug, axis=1))

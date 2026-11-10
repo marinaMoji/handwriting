@@ -31,6 +31,7 @@ def main():
     workers = arg("--workers", 8, int)
     lr = arg("--lr", 2e-3)
     eval_every = arg("--eval-every", 2000, int)
+    aug_level = arg("--aug", 1, int)
     bench = "--bench" in sys.argv
     out = os.path.join(ROOT, "ml", "runs", name)
     os.makedirs(out, exist_ok=True)
@@ -51,7 +52,7 @@ def main():
     say(f"device {device}, params {sum(p.numel() for p in model.parameters())/1e6:.2f}M")
     opt = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=0.05)
     sched = torch.optim.lr_scheduler.OneCycleLR(opt, max_lr=lr, total_steps=steps, pct_start=0.1)
-    loader = DataLoader(TemplateStream(templates, classes, seed=int(time.time()) % 100000),
+    loader = DataLoader(TemplateStream(templates, classes, seed=int(time.time()) % 100000, level=aug_level),
                         batch_size=batch, num_workers=workers, persistent_workers=True, prefetch_factor=4)
     real = load_samples(os.path.join(ROOT, "samples"))
 
