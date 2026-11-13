@@ -21,13 +21,19 @@ QByteArray toJson(const Sample& sample) {
     strokes.append(pts);
   }
   QJsonObject o;
-  o[QStringLiteral("version")] = 1;
+  o[QStringLiteral("version")] = 2;
   o[QStringLiteral("character")] = sample.character;
   o[QStringLiteral("surface")] = QJsonArray{sample.surfaceWidth, sample.surfaceHeight};
   o[QStringLiteral("source")] = sample.source;
   o[QStringLiteral("timestamp")] = sample.timestamp;
   o[QStringLiteral("note")] = sample.note;
   o[QStringLiteral("strokes")] = strokes;
+  o[QStringLiteral("writer")] = sample.writer;
+  o[QStringLiteral("handedness")] = sample.handedness;
+  o[QStringLiteral("device")] = sample.device;
+  o[QStringLiteral("set")] = sample.set;
+  o[QStringLiteral("session")] = sample.session;
+  o[QStringLiteral("prompted")] = sample.prompted;
   return QJsonDocument(o).toJson(QJsonDocument::Indented);
 }
 
@@ -53,6 +59,12 @@ bool fromJson(const QByteArray& json, Sample* sample, QString* error) {
   out.source = o.value(QStringLiteral("source")).toString();
   out.timestamp = o.value(QStringLiteral("timestamp")).toString();
   out.note = o.value(QStringLiteral("note")).toString();
+  out.writer = o.value(QStringLiteral("writer")).toString();
+  out.handedness = o.value(QStringLiteral("handedness")).toString();
+  out.device = o.value(QStringLiteral("device")).toString();
+  out.set = o.value(QStringLiteral("set")).toString();
+  out.session = o.value(QStringLiteral("session")).toString();
+  out.prompted = o.value(QStringLiteral("prompted")).toBool(false);
 
   const QJsonArray strokes = o.value(QStringLiteral("strokes")).toArray();
   if (strokes.isEmpty()) {

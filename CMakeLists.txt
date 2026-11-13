@@ -53,6 +53,7 @@ set_target_properties(zinnia_convert PROPERTIES AUTOMOC OFF AUTOUIC OFF AUTORCC 
 add_library(handwriting_backend STATIC
   src/ZinniaBackend.cpp
   src/SampleIO.cpp
+  src/PracticeSession.cpp
   src/Recognizer.cpp
   src/StrokeCount.cpp
   src/InkNet.cpp
@@ -125,6 +126,7 @@ target_compile_definitions(handwriting_app PRIVATE
   HANDWRITING_DEFAULT_MODEL_DIR="${CMAKE_CURRENT_SOURCE_DIR}/models"
   HANDWRITING_DEFAULT_SAMPLES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/samples"
   HANDWRITING_DEFAULT_INKNET_PATH="${CMAKE_CURRENT_SOURCE_DIR}/data/inknet.bin"
+  HANDWRITING_PRACTICE_DOCS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/docs"
 )
 
 # --- Unit tests (pure mapping / jump logic) ----------------------------------
@@ -248,6 +250,12 @@ target_link_libraries(backend_alt_model_test PRIVATE handwriting_backend)
 target_compile_definitions(backend_alt_model_test PRIVATE
   HANDWRITING_DEFAULT_MODEL_DIR="${CMAKE_CURRENT_SOURCE_DIR}/models")
 add_test(NAME backend_alt_model_test COMMAND backend_alt_model_test)
+
+add_executable(practice_session_test tests/practice_session_test.cpp)
+target_link_libraries(practice_session_test PRIVATE Qt6::Core handwriting_backend)
+add_test(NAME practice_session_test COMMAND practice_session_test)
+target_compile_definitions(practice_session_test PRIVATE
+  HANDWRITING_PRACTICE_DOCS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/docs")
 
 add_executable(neural_weights_test tests/neural_weights_test.cpp)
 target_include_directories(neural_weights_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)

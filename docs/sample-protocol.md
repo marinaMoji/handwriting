@@ -24,6 +24,24 @@ The character lists are in [sample-chars.json](sample-chars.json) (213 entries i
 | 2 | Traditional forms, variant pairs (~70): the most valuable set, it decides Both-mode fusion | ~15 min |
 | 3 | Complex, rare (~40), then a second quick pass over anything you like | ~15 min |
 
+## Practice mode (prompted collection)
+
+Faster than typing the expected character for every sample, and it keeps writers' data separable.
+
+1. Press **Writer…** once: a pseudonym (letters, digits, `-`, `_`; not a name), the writing hand, and the device. It is stored in every sample (`writer`, `handedness`, `device`) and remembered between runs.
+2. Press **Practice**, pick a list, and write the character shown. **Return** saves and moves on, **Backspace** clears the ink to try again, **→** skips (the character comes back at the end), **←** deletes the sample saved last. For a left-handed writer on the trackpad, hold **F12** to write and use the right hand for these keys.
+3. Recognition is hidden by default so it cannot change how you write (tick *Show recognition* to see it). Quit any time: the next session resumes with the characters this writer has not written yet.
+
+| List | Writes to | Purpose |
+|---|---|---|
+| Held-out core (150 characters) | `samples-test/` (`set: test`) | The same list for every writer, so writers can be compared. Never tuned on. Contains none of the development characters. |
+| More development characters (300) | `samples/` (`set: dev`) | Broader coverage for tuning and training experiments. |
+| The seven lists of `sample-chars.json` | `samples/` | The original development lists. |
+
+The two generated lists come from `scripts/make_practice_sets.py` (fixed seed, stratified by stroke count, drawn from jōyō kanji, traditional / jinmeiyō forms and other common ideographs, with the development characters excluded). Their order is shuffled per writer. The prompt is a printed glyph, so this is copying rather than writing from memory, and a font's shapes can differ from what a writer would produce.
+
+Each sample also records `set`, `session` (one per app run), and `prompted` (true when the app chose the character). Evaluate one writer with `handwriting_eval --samples samples-test --writer w1`, and check progress with `scripts/sample_coverage.py --writer w1`. Older samples have no writer and still load.
+
 ## Rules that keep the data useful
 
 - Write naturally on the trackpad; do not adapt to the recognizer. Wrong results are the point.

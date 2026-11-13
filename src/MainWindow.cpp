@@ -11,6 +11,13 @@
 #include <QAbstractSpinBox>
 #include <QApplication>
 #include <QCheckBox>
+#include <QDialog>
+#include <QDialogButtonBox>
+#include <QFile>
+#include <QFormLayout>
+#include <QRegularExpression>
+#include <QSettings>
+#include <QShortcut>
 #include <QClipboard>
 #include <QDateTime>
 #include <QComboBox>
@@ -28,6 +35,9 @@
 #include <QVBoxLayout>
 #include <QWidget>
 
+#ifndef HANDWRITING_PRACTICE_DOCS_DIR
+#define HANDWRITING_PRACTICE_DOCS_DIR "docs"
+#endif
 #ifndef HANDWRITING_DEFAULT_SAMPLES_DIR
 #define HANDWRITING_DEFAULT_SAMPLES_DIR "samples"
 #endif
@@ -46,6 +56,42 @@ MainWindow::MainWindow(ZinniaBackend* backend, const ink::InkNet* net, const QSt
   auto* left = new QVBoxLayout(leftColumn);
   left->setContentsMargins(0, 0, 0, 0);
   left->setSpacing(8);
+
+  QSettings settings;
+  profile_.writer = settings.value(QStringLiteral("writer/name")).toString();
+  profile_.handedness = settings.value(QStringLiteral("writer/handedness")).toString();
+  profile_.device = settings.value(QStringLiteral("writer/device"), QStringLiteral("trackpad")).toString();
+  sessionId_ = QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd-HHmmss"));
+
+  // Practice bar: which list, the character to write, progress.
+  practiceBar_ = new QWidget(leftColumn);
+  auto* practiceLayout = new QVBoxLayout(practiceBar_);
+  practiceLayout->setContentsMargins(0, 0, 0, 0);
+  auto* practiceTop = new QHBoxLayout();
+  practiceSetCombo_ = new QComboBox(practiceBar_);
+  practiceProgress_ = new QLabel(practiceBar_);
+  practiceShowRecognition_ = new QCheckBox(tr("Show recognition"), practiceBar_);
+  practiceShowRecognition_->setToolTip(
+      tr("Off by default: seeing the result can change how you write. Samples are saved either way."));
+  practiceTop->addWidget(new QLabel(tr("List:"), practiceBar_));
+  practiceTop->addWidget(practiceSetCombo_, 1);
+  practiceTop->addWidget(practiceProgress_);
+  practiceTop->addWidget(practiceShowRecognition_);
+  practiceLayout->addLayout(practiceTop);
+  practiceTarget_ = new QLabel(practiceBar_);
+  practiceTarget_->setAlignment(Qt::AlignCenter);
+  QFont targetFont = practiceTarget_->font();
+  targetFont.setPointSize(64);
+  practiceTarget_->setFont(targetFont);
+  practiceTarget_->setMinimumHeight(110);
+  practiceLayout->addWidget(practiceTarget_);
+  auto* practiceHint = new QLabel(
+      tr("Return: save and next · Backspace: redo this one · →: skip · ←: delete the last saved"),
+      practiceBar_);
+  practiceHint->setAlignment(Qt::AlignCenter);
+  practiceLayout->addWidget(practiceHint);
+  practiceBar_->setVisible(false);
+  left->addWidget(practiceBar_, /*stretch*/ 0);
 
   canvas_ = new DrawingCanvas(leftColumn);
   left->addWidget(canvas_, /*stretch*/ 1);
@@ -89,6 +135,13 @@ MainWindow::MainWindow(ZinniaBackend* backend, const ink::InkNet* net, const QSt
   controls->addWidget(copyButton_);
   controls->addWidget(expectedEdit_);
   controls->addWidget(saveSampleButton_);
+  practiceButton_ = new QPushButton(tr("Practice"), controlBar);
+  practiceButton_->setCheckable(true);
+  practiceButton_->setToolTip(tr("Prompted sample collection: write the character shown, Return saves"));
+  auto* writerButton = new QPushButton(tr("Writer…"), controlBar);
+  writerButton->setToolTip(tr("Who is writing: saved with every sample"));
+  controls->addWidget(practiceButton_);
+  controls->addWidget(writerButton);
   left->addWidget(controlBar, /*stretch*/ 0);
 
   diagnostics_ = new QLabel(leftColumn);
@@ -121,6 +174,29 @@ MainWindow::MainWindow(ZinniaBackend* backend, const ink::InkNet* net, const QSt
   connect(expectedEdit_, &QLineEdit::returnPressed, this, &MainWindow::saveSample);
   connect(expectedEdit_, &QLineEdit::textChanged, this, &MainWindow::updateSaveEnabled);
   connect(undoBtn, &QPushButton::clicked, this, &MainWindow::undoStroke);
+  connect(writerButton, &QPushButton::clicked, this, &MainWindow::editWriter);
+  connect(practiceButton_, &QPushButton::toggled, this, &MainWindow::togglePractice);
+  connect(practiceSetCombo_, QOverload<int>::of(&QComboBox::activated), this, [this](int) {
+    startPractice();
+    canvas_->setFocus(Qt::OtherFocusReason);
+  });
+  connect(practiceShowRecognition_, &QCheckBox::toggled, this, [this](bool) {
+    canvas_->setFocus(Qt::OtherFocusReason);
+    onStrokesChanged();
+  });
+  // Keys for the writing hand's partner: Return saves, Backspace redoes, arrows skip / go back.
+  auto addShortcut = [this](const QKeySequence& seq, void (MainWindow::*slot)()) {
+    auto* sc = new QShortcut(seq, this);
+    sc->setContext(Qt::WindowShortcut);
+    sc->setEnabled(false);
+    connect(sc, &QShortcut::activated, this, slot);
+    practiceShortcuts_.push_back(sc);
+  };
+  addShortcut(Qt::Key_Return, &MainWindow::practiceSaveNext);
+  addShortcut(Qt::Key_Enter, &MainWindow::practiceSaveNext);
+  addShortcut(Qt::Key_Backspace, &MainWindow::practiceRedo);
+  addShortcut(Qt::Key_Right, &MainWindow::practiceSkip);
+  addShortcut(Qt::Key_Left, &MainWindow::practiceUndoLast);
   connect(copyButton_, &QPushButton::clicked, this, &MainWindow::copySelected);
   connect(candidates_, &CandidatePanel::selectionChanged, this, [this](const QString& ch) {
     copyButton_->setEnabled(!ch.isEmpty());
@@ -279,6 +355,9 @@ void MainWindow::saveSample() {
   sample.surfaceWidth = canvas_->surfaceWidth();
   sample.surfaceHeight = canvas_->surfaceHeight();
   sample.source = canvas_->inputSourceLabel();
+  fillMetadata(&sample);
+  sample.set = QStringLiteral("dev");
+  sample.prompted = false;
 
   QString dir = qEnvironmentVariable("HANDWRITING_SAMPLES_DIR");
   if (dir.isEmpty()) {
@@ -341,6 +420,11 @@ void MainWindow::onStrokesChanged() {
 }
 
 void MainWindow::runRecognition() {
+  if (practice_ && !practiceShowRecognition_->isChecked()) {
+    ++recognitionGeneration_;  // drop any answer still in flight
+    candidates_->clear();
+    return;
+  }
   const QVector<Stroke> rawStrokes = canvas_->strokes();
   if (rawStrokes.isEmpty()) {
     candidates_->clear();
@@ -380,4 +464,174 @@ void MainWindow::runRecognition() {
     return recognizer.recognize(rawStrokes, w, h, mode, options);
   });
   watcher->setFuture(future);
+}
+
+// --- Writer profile and Practice mode ------------------------------------------------------------
+
+void MainWindow::fillMetadata(Sample* sample) const {
+  sample->writer = profile_.writer;
+  sample->handedness = profile_.handedness;
+  sample->device = profile_.device;
+  sample->session = sessionId_;
+}
+
+bool MainWindow::askWriter() {
+  QDialog dlg(this);
+  dlg.setWindowTitle(tr("Who is writing?"));
+  auto* form = new QFormLayout(&dlg);
+  auto* name = new QLineEdit(profile_.writer, &dlg);
+  name->setMaxLength(24);
+  name->setPlaceholderText(tr("a pseudonym, e.g. w1 (not your name)"));
+  auto* hand = new QComboBox(&dlg);
+  hand->addItem(tr("Right-handed"), QStringLiteral("right"));
+  hand->addItem(tr("Left-handed"), QStringLiteral("left"));
+  hand->addItem(tr("Not stated"), QString());
+  hand->setCurrentIndex(qMax(0, hand->findData(profile_.handedness)));
+  auto* device = new QComboBox(&dlg);
+  device->addItem(tr("Trackpad"), QStringLiteral("trackpad"));
+  device->addItem(tr("Mouse"), QStringLiteral("mouse"));
+  device->addItem(tr("Stylus / tablet"), QStringLiteral("stylus"));
+  device->setCurrentIndex(qMax(0, device->findData(profile_.device)));
+  form->addRow(tr("Writer id:"), name);
+  form->addRow(tr("Writing hand:"), hand);
+  form->addRow(tr("Device:"), device);
+  form->addRow(new QLabel(tr("Stored in every sample you save. Samples stay on this computer."), &dlg));
+  auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dlg);
+  form->addRow(buttons);
+  connect(buttons, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
+  connect(buttons, &QDialogButtonBox::accepted, &dlg, [&]() {
+    // Letters, digits, - and _ only: easy to type again and safe in a file name.
+    if (!QRegularExpression(QStringLiteral("^[A-Za-z0-9_-]{1,24}$")).match(name->text().trimmed()).hasMatch()) {
+      name->setStyleSheet(QStringLiteral("border: 1px solid red"));
+      return;
+    }
+    dlg.accept();
+  });
+  if (dlg.exec() != QDialog::Accepted) return false;
+  profile_.writer = name->text().trimmed();
+  profile_.handedness = hand->currentData().toString();
+  profile_.device = device->currentData().toString();
+  QSettings settings;
+  settings.setValue(QStringLiteral("writer/name"), profile_.writer);
+  settings.setValue(QStringLiteral("writer/handedness"), profile_.handedness);
+  settings.setValue(QStringLiteral("writer/device"), profile_.device);
+  return true;
+}
+
+void MainWindow::editWriter() {
+  if (askWriter() && practice_) startPractice();  // another writer: their own progress
+}
+
+void MainWindow::togglePractice(bool on) {
+  if (!on) {
+    practice_.reset();
+    practiceBar_->setVisible(false);
+    candidates_->setVisible(true);
+    expectedEdit_->setVisible(true);
+    saveSampleButton_->setVisible(true);
+    copyButton_->setVisible(true);
+    for (QShortcut* sc : practiceShortcuts_) sc->setEnabled(false);
+    statusBar()->showMessage(tr("Practice off"), 3000);
+    clearAll();
+    return;
+  }
+  if (profile_.writer.isEmpty() && !askWriter()) {
+    QSignalBlocker block(practiceButton_);
+    practiceButton_->setChecked(false);
+    return;
+  }
+  if (practiceSets_.isEmpty()) {
+    QString err;
+    const QString docs = qEnvironmentVariable("HANDWRITING_PRACTICE_DOCS", QString::fromUtf8(HANDWRITING_PRACTICE_DOCS_DIR));
+    practiceSets_ = practice::loadSets(docs, &err);
+    if (practiceSets_.isEmpty()) {
+      statusBar()->showMessage(err, 8000);
+      QSignalBlocker block(practiceButton_);
+      practiceButton_->setChecked(false);
+      return;
+    }
+    for (const PracticeSet& set : practiceSets_) {
+      practiceSetCombo_->addItem(tr("%1 (%2)").arg(set.label, set.tag), set.id);
+    }
+  }
+  practiceBar_->setVisible(true);
+  candidates_->setVisible(false);
+  expectedEdit_->setVisible(false);
+  saveSampleButton_->setVisible(false);
+  copyButton_->setVisible(false);
+  for (QShortcut* sc : practiceShortcuts_) sc->setEnabled(true);
+  canvas_->clearStrokes();
+  startPractice();
+  canvas_->setFocus(Qt::OtherFocusReason);
+}
+
+void MainWindow::startPractice() {
+  const QString id = practiceSetCombo_->currentData().toString();
+  for (const PracticeSet& set : practiceSets_) {
+    if (set.id != id) continue;
+    // $HANDWRITING_SAMPLES_DIR, if set, wins inside sampleDirForTag.
+    practiceDir_ = practice::sampleDirForTag(set.tag, QString::fromUtf8(HANDWRITING_DEFAULT_SAMPLES_DIR));
+    practice_ = std::make_unique<practice::PracticeSession>(
+        set, profile_.writer, practice::charsWrittenBy(practiceDir_, profile_.writer));
+    canvas_->clearStrokes();
+    refreshPractice();
+    return;
+  }
+}
+
+void MainWindow::refreshPractice() {
+  if (!practice_) return;
+  practiceTarget_->setText(practice_->finished() ? tr("Done") : practice_->current());
+  practiceProgress_->setText(tr("%1 / %2 · %3 left").arg(practice_->written()).arg(practice_->total()).arg(practice_->remaining()));
+  statusBar()->showMessage(tr("Practice · writer %1 · %2 · saving to %3")
+                               .arg(profile_.writer, profile_.handedness.isEmpty() ? tr("hand not stated") : tr("%1-handed").arg(profile_.handedness), practiceDir_));
+}
+
+void MainWindow::practiceSaveNext() {
+  if (!practice_ || practice_->finished()) return;
+  if (canvas_->strokes().isEmpty()) {
+    statusBar()->showMessage(tr("Write the character first (→ skips it)."), 3000);
+    return;
+  }
+  Sample sample;
+  sample.character = practice_->current();
+  sample.strokes = canvas_->strokes();
+  sample.surfaceWidth = canvas_->surfaceWidth();
+  sample.surfaceHeight = canvas_->surfaceHeight();
+  sample.source = canvas_->inputSourceLabel();
+  fillMetadata(&sample);
+  sample.set = practice_->set().tag;
+  sample.prompted = true;
+  QString path, error;
+  if (!sample_io::saveSample(practiceDir_, sample, &path, &error)) {
+    statusBar()->showMessage(tr("Could not save sample: %1").arg(error), 8000);
+    return;
+  }
+  practice_->saved(path);
+  canvas_->clearStrokes();
+  refreshPractice();
+  if (practice_->finished()) statusBar()->showMessage(tr("This list is finished. Thank you!"), 8000);
+}
+
+void MainWindow::practiceRedo() {
+  if (practice_) canvas_->clearStrokes();
+}
+
+void MainWindow::practiceSkip() {
+  if (!practice_) return;
+  practice_->skip();
+  canvas_->clearStrokes();
+  refreshPractice();
+}
+
+void MainWindow::practiceUndoLast() {
+  if (!practice_) return;
+  QString removed;
+  if (practice_->undoLastSaved(&removed)) {
+    canvas_->clearStrokes();
+    refreshPractice();
+    statusBar()->showMessage(tr("Deleted %1").arg(removed), 4000);
+  } else {
+    statusBar()->showMessage(tr("Nothing saved in this session to delete."), 3000);
+  }
 }

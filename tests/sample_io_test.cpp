@@ -37,6 +37,31 @@ int main(int argc, char** argv) {
              r.strokes[2][0].x == 110,
          "stroke points preserved exactly");
 
+  // Version 1 files carry no writer metadata and still load.
+  {
+    Sample v1;
+    const QByteArray json =
+        "{\"version\":1,\"character\":\"一\",\"surface\":[300,300],\"source\":\"mixed\","
+        "\"timestamp\":\"t\",\"note\":\"\",\"strokes\":[[[0,0],[10,10]]]}";
+    expect(sample_io::fromJson(json, &v1, &err), "version 1 file loads");
+    expect(v1.writer.isEmpty() && v1.set.isEmpty() && !v1.prompted, "version 1 file has empty metadata");
+  }
+  // Writer metadata round trip.
+  {
+    Sample m = s;
+    m.writer = QStringLiteral("w2");
+    m.handedness = QStringLiteral("left");
+    m.device = QStringLiteral("trackpad");
+    m.set = QStringLiteral("test");
+    m.session = QStringLiteral("20261120-101500");
+    m.prompted = true;
+    Sample back;
+    expect(sample_io::fromJson(sample_io::toJson(m), &back, &err), "metadata json round trip");
+    expect(back.writer == m.writer && back.handedness == m.handedness && back.device == m.device &&
+               back.set == m.set && back.session == m.session && back.prompted,
+           "writer, handedness, device, set, session and prompted preserved");
+  }
+
   // Supplementary-plane character (surrogate pair).
   Sample t = s;
   t.character = QStringLiteral("𠮷");

@@ -88,6 +88,7 @@ int main(int argc, char** argv) {
   double countWeight = -1.0;
   int countBand = -1;
   QString neuralPath, neuralMode = QStringLiteral("hybrid");
+  QString writerFilter;  // only samples whose "writer" field matches (empty: all)
   double neuralWeight = 4.0;
   int charSplit = -1;  // 0/1: keep only samples whose first code point is even/odd
   int synthetic = 0;
@@ -108,6 +109,7 @@ int main(int argc, char** argv) {
     auto next = [&]() { return i + 1 < args.size() ? args[++i] : QString(); };
     if (a == QLatin1String("--samples")) { samplesDir = next(); samplesGiven = true; }
     else if (a == QLatin1String("--models")) modelDir = next();
+    else if (a == QLatin1String("--writer")) writerFilter = next();
     else if (a == QLatin1String("--synthetic")) synthetic = next().toInt();
     else if (a == QLatin1String("--modes")) modes = next().split(',', Qt::SkipEmptyParts);
     else if (a == QLatin1String("--variants")) variants = next().split(',', Qt::SkipEmptyParts);
@@ -137,7 +139,7 @@ int main(int argc, char** argv) {
     else if (a == QLatin1String("--margin")) gMargin = next().toInt();
     else if (a == QLatin1String("--maxscale")) gMaxScale = next().toDouble();
     else if (a == QLatin1String("--help") || a == QLatin1String("-h")) {
-      out << "usage: handwriting_eval [--samples DIR] [--synthetic N] [--models DIR]\n"
+      out << "usage: handwriting_eval [--samples DIR] [--writer ID] [--synthetic N] [--models DIR]\n"
              "       [--modes ja,tw,both] [--variants raw,none,rdp:3,smooth:2+rdp:3]\n"
              "       [--misses] [--csv FILE] [--save-synthetic DIR]\n"
              "       [--fusions interleave,rrf,max,z,cal] [--rrf-k K] [--ja-bias B] [--tw-bias B]\n"
@@ -191,7 +193,11 @@ int main(int argc, char** argv) {
   for (const QString& f : files) {
     Sample s;
     QString e;
-    if (sample_io::loadSample(f, &s, &e)) { samples.push_back(s); sampleNames << QFileInfo(f).fileName(); }
+    if (sample_io::loadSample(f, &s, &e)) {
+      if (!writerFilter.isEmpty() && s.writer != writerFilter) continue;
+      samples.push_back(s);
+      sampleNames << QFileInfo(f).fileName();
+    }
     else { ++skipped; err << "skip " << f << ": " << e << "\n"; }
   }
   if (charSplit == 0 || charSplit == 1) {

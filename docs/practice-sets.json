@@ -1,0 +1,2727 @@
+{
+ "version": 1,
+ "generator": "scripts/make_practice_sets.py",
+ "seed": 20261113,
+ "excluded_development_characters": 190,
+ "unihan": "Unihan.zip (kJoyoKanji, kJinmeiyoKanji, kSimplifiedVariant, kFrequency, kGradeLevel, kTotalStrokes)",
+ "sets": {
+  "core": {
+   "label": "Held-out core (all writers)",
+   "tag": "test",
+   "description": "Same list for every writer; saved in samples-test/ and never tuned on.",
+   "chars": [
+    "襤",
+    "炊",
+    "窗",
+    "綴",
+    "竹",
+    "沒",
+    "久",
+    "缺",
+    "想",
+    "艇",
+    "脈",
+    "贈",
+    "幽",
+    "蓋",
+    "塩",
+    "叱",
+    "聴",
+    "跟",
+    "奢",
+    "辯",
+    "仁",
+    "懇",
+    "匆",
+    "鴿",
+    "孔",
+    "桔",
+    "惱",
+    "定",
+    "欠",
+    "採",
+    "屆",
+    "戊",
+    "了",
+    "肌",
+    "儀",
+    "竿",
+    "徒",
+    "瘍",
+    "庭",
+    "窩",
+    "器",
+    "型",
+    "樋",
+    "附",
+    "蹈",
+    "翻",
+    "替",
+    "夕",
+    "顎",
+    "忙",
+    "設",
+    "漠",
+    "述",
+    "茂",
+    "洛",
+    "澡",
+    "各",
+    "蠢",
+    "曳",
+    "蝴",
+    "亙",
+    "税",
+    "欄",
+    "塘",
+    "纜",
+    "墾",
+    "組",
+    "癒",
+    "舗",
+    "敷",
+    "砂",
+    "椰",
+    "譽",
+    "覇",
+    "凰",
+    "鄭",
+    "麟",
+    "壕",
+    "掠",
+    "撮",
+    "彎",
+    "彷",
+    "杭",
+    "占",
+    "匪",
+    "廈",
+    "丐",
+    "瞎",
+    "喫",
+    "決",
+    "做",
+    "透",
+    "洽",
+    "阻",
+    "吾",
+    "張",
+    "盒",
+    "踴",
+    "積",
+    "雅",
+    "交",
+    "蹟",
+    "城",
+    "奴",
+    "懸",
+    "伺",
+    "乃",
+    "爬",
+    "違",
+    "之",
+    "魂",
+    "宜",
+    "碩",
+    "奥",
+    "曖",
+    "押",
+    "也",
+    "求",
+    "峻",
+    "喋",
+    "娠",
+    "洩",
+    "碁",
+    "供",
+    "瀧",
+    "癡",
+    "醇",
+    "晏",
+    "雷",
+    "掛",
+    "闖",
+    "譬",
+    "酷",
+    "穏",
+    "楚",
+    "悉",
+    "墮",
+    "瘉",
+    "偽",
+    "篠",
+    "管",
+    "蕃",
+    "玄",
+    "吃",
+    "料",
+    "姑",
+    "釀",
+    "蔚",
+    "慮",
+    "励"
+   ],
+   "info": {
+    "襤": {
+     "strokes": 19,
+     "pool": "trad",
+     "hzw": true
+    },
+    "炊": {
+     "strokes": 8,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "窗": {
+     "strokes": 12,
+     "pool": "other",
+     "hzw": true
+    },
+    "綴": {
+     "strokes": 14,
+     "pool": "trad",
+     "hzw": true
+    },
+    "竹": {
+     "strokes": 6,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "沒": {
+     "strokes": 7,
+     "pool": "trad",
+     "hzw": true
+    },
+    "久": {
+     "strokes": 3,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "缺": {
+     "strokes": 10,
+     "pool": "other",
+     "hzw": true
+    },
+    "想": {
+     "strokes": 13,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "艇": {
+     "strokes": 12,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "脈": {
+     "strokes": 10,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "贈": {
+     "strokes": 19,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "幽": {
+     "strokes": 9,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "蓋": {
+     "strokes": 14,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "塩": {
+     "strokes": 13,
+     "pool": "joyo",
+     "hzw": false
+    },
+    "叱": {
+     "strokes": 5,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "聴": {
+     "strokes": 17,
+     "pool": "joyo",
+     "hzw": false
+    },
+    "跟": {
+     "strokes": 13,
+     "pool": "other",
+     "hzw": true
+    },
+    "奢": {
+     "strokes": 12,
+     "pool": "other",
+     "hzw": true
+    },
+    "辯": {
+     "strokes": 21,
+     "pool": "trad",
+     "hzw": true
+    },
+    "仁": {
+     "strokes": 4,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "懇": {
+     "strokes": 17,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "匆": {
+     "strokes": 5,
+     "pool": "other",
+     "hzw": true
+    },
+    "鴿": {
+     "strokes": 17,
+     "pool": "trad",
+     "hzw": true
+    },
+    "孔": {
+     "strokes": 4,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "桔": {
+     "strokes": 10,
+     "pool": "trad",
+     "hzw": true
+    },
+    "惱": {
+     "strokes": 12,
+     "pool": "trad",
+     "hzw": true
+    },
+    "定": {
+     "strokes": 8,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "欠": {
+     "strokes": 4,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "採": {
+     "strokes": 11,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "屆": {
+     "strokes": 8,
+     "pool": "trad",
+     "hzw": true
+    },
+    "戊": {
+     "strokes": 5,
+     "pool": "trad",
+     "hzw": true
+    },
+    "了": {
+     "strokes": 2,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "肌": {
+     "strokes": 6,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "儀": {
+     "strokes": 15,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "竿": {
+     "strokes": 9,
+     "pool": "trad",
+     "hzw": true
+    },
+    "徒": {
+     "strokes": 10,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "瘍": {
+     "strokes": 14,
+     "pool": "joyo",
+     "hzw": false
+    },
+    "庭": {
+     "strokes": 10,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "窩": {
+     "strokes": 13,
+     "pool": "trad",
+     "hzw": true
+    },
+    "器": {
+     "strokes": 16,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "型": {
+     "strokes": 9,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "樋": {
+     "strokes": 14,
+     "pool": "trad",
+     "hzw": false
+    },
+    "附": {
+     "strokes": 8,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "蹈": {
+     "strokes": 17,
+     "pool": "other",
+     "hzw": true
+    },
+    "翻": {
+     "strokes": 18,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "替": {
+     "strokes": 12,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "夕": {
+     "strokes": 3,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "顎": {
+     "strokes": 18,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "忙": {
+     "strokes": 6,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "設": {
+     "strokes": 11,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "漠": {
+     "strokes": 13,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "述": {
+     "strokes": 9,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "茂": {
+     "strokes": 9,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "洛": {
+     "strokes": 9,
+     "pool": "trad",
+     "hzw": true
+    },
+    "澡": {
+     "strokes": 16,
+     "pool": "other",
+     "hzw": true
+    },
+    "各": {
+     "strokes": 6,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "蠢": {
+     "strokes": 21,
+     "pool": "other",
+     "hzw": true
+    },
+    "曳": {
+     "strokes": 6,
+     "pool": "trad",
+     "hzw": true
+    },
+    "蝴": {
+     "strokes": 15,
+     "pool": "other",
+     "hzw": true
+    },
+    "亙": {
+     "strokes": 6,
+     "pool": "trad",
+     "hzw": true
+    },
+    "税": {
+     "strokes": 12,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "欄": {
+     "strokes": 21,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "塘": {
+     "strokes": 13,
+     "pool": "other",
+     "hzw": true
+    },
+    "纜": {
+     "strokes": 27,
+     "pool": "trad",
+     "hzw": true
+    },
+    "墾": {
+     "strokes": 16,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "組": {
+     "strokes": 11,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "癒": {
+     "strokes": 18,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "舗": {
+     "strokes": 15,
+     "pool": "joyo",
+     "hzw": false
+    },
+    "敷": {
+     "strokes": 15,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "砂": {
+     "strokes": 9,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "椰": {
+     "strokes": 12,
+     "pool": "trad",
+     "hzw": true
+    },
+    "譽": {
+     "strokes": 20,
+     "pool": "trad",
+     "hzw": true
+    },
+    "覇": {
+     "strokes": 19,
+     "pool": "joyo",
+     "hzw": false
+    },
+    "凰": {
+     "strokes": 11,
+     "pool": "trad",
+     "hzw": true
+    },
+    "鄭": {
+     "strokes": 15,
+     "pool": "trad",
+     "hzw": true
+    },
+    "麟": {
+     "strokes": 23,
+     "pool": "trad",
+     "hzw": true
+    },
+    "壕": {
+     "strokes": 17,
+     "pool": "trad",
+     "hzw": true
+    },
+    "掠": {
+     "strokes": 11,
+     "pool": "trad",
+     "hzw": true
+    },
+    "撮": {
+     "strokes": 15,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "彎": {
+     "strokes": 22,
+     "pool": "trad",
+     "hzw": true
+    },
+    "彷": {
+     "strokes": 7,
+     "pool": "other",
+     "hzw": true
+    },
+    "杭": {
+     "strokes": 8,
+     "pool": "trad",
+     "hzw": true
+    },
+    "占": {
+     "strokes": 5,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "匪": {
+     "strokes": 10,
+     "pool": "other",
+     "hzw": true
+    },
+    "廈": {
+     "strokes": 13,
+     "pool": "trad",
+     "hzw": true
+    },
+    "丐": {
+     "strokes": 4,
+     "pool": "other",
+     "hzw": true
+    },
+    "瞎": {
+     "strokes": 15,
+     "pool": "other",
+     "hzw": true
+    },
+    "喫": {
+     "strokes": 12,
+     "pool": "joyo",
+     "hzw": false
+    },
+    "決": {
+     "strokes": 7,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "做": {
+     "strokes": 11,
+     "pool": "other",
+     "hzw": true
+    },
+    "透": {
+     "strokes": 10,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "洽": {
+     "strokes": 9,
+     "pool": "other",
+     "hzw": true
+    },
+    "阻": {
+     "strokes": 7,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "吾": {
+     "strokes": 7,
+     "pool": "trad",
+     "hzw": true
+    },
+    "張": {
+     "strokes": 11,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "盒": {
+     "strokes": 11,
+     "pool": "other",
+     "hzw": true
+    },
+    "踴": {
+     "strokes": 16,
+     "pool": "trad",
+     "hzw": true
+    },
+    "積": {
+     "strokes": 16,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "雅": {
+     "strokes": 12,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "交": {
+     "strokes": 6,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "蹟": {
+     "strokes": 18,
+     "pool": "trad",
+     "hzw": true
+    },
+    "城": {
+     "strokes": 9,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "奴": {
+     "strokes": 5,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "懸": {
+     "strokes": 20,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "伺": {
+     "strokes": 7,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "乃": {
+     "strokes": 2,
+     "pool": "trad",
+     "hzw": true
+    },
+    "爬": {
+     "strokes": 8,
+     "pool": "other",
+     "hzw": true
+    },
+    "違": {
+     "strokes": 13,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "之": {
+     "strokes": 4,
+     "pool": "trad",
+     "hzw": true
+    },
+    "魂": {
+     "strokes": 14,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "宜": {
+     "strokes": 8,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "碩": {
+     "strokes": 14,
+     "pool": "trad",
+     "hzw": true
+    },
+    "奥": {
+     "strokes": 12,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "曖": {
+     "strokes": 17,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "押": {
+     "strokes": 8,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "也": {
+     "strokes": 3,
+     "pool": "trad",
+     "hzw": true
+    },
+    "求": {
+     "strokes": 7,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "峻": {
+     "strokes": 10,
+     "pool": "trad",
+     "hzw": true
+    },
+    "喋": {
+     "strokes": 12,
+     "pool": "trad",
+     "hzw": true
+    },
+    "娠": {
+     "strokes": 10,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "洩": {
+     "strokes": 9,
+     "pool": "other",
+     "hzw": true
+    },
+    "碁": {
+     "strokes": 13,
+     "pool": "joyo",
+     "hzw": false
+    },
+    "供": {
+     "strokes": 8,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "瀧": {
+     "strokes": 19,
+     "pool": "trad",
+     "hzw": true
+    },
+    "癡": {
+     "strokes": 19,
+     "pool": "other",
+     "hzw": true
+    },
+    "醇": {
+     "strokes": 15,
+     "pool": "trad",
+     "hzw": true
+    },
+    "晏": {
+     "strokes": 10,
+     "pool": "trad",
+     "hzw": true
+    },
+    "雷": {
+     "strokes": 13,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "掛": {
+     "strokes": 11,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "闖": {
+     "strokes": 18,
+     "pool": "trad",
+     "hzw": true
+    },
+    "譬": {
+     "strokes": 20,
+     "pool": "other",
+     "hzw": true
+    },
+    "酷": {
+     "strokes": 14,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "穏": {
+     "strokes": 16,
+     "pool": "joyo",
+     "hzw": false
+    },
+    "楚": {
+     "strokes": 13,
+     "pool": "trad",
+     "hzw": true
+    },
+    "悉": {
+     "strokes": 11,
+     "pool": "trad",
+     "hzw": true
+    },
+    "墮": {
+     "strokes": 15,
+     "pool": "trad",
+     "hzw": true
+    },
+    "瘉": {
+     "strokes": 14,
+     "pool": "other",
+     "hzw": false
+    },
+    "偽": {
+     "strokes": 11,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "篠": {
+     "strokes": 16,
+     "pool": "trad",
+     "hzw": false
+    },
+    "管": {
+     "strokes": 14,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "蕃": {
+     "strokes": 16,
+     "pool": "trad",
+     "hzw": true
+    },
+    "玄": {
+     "strokes": 5,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "吃": {
+     "strokes": 6,
+     "pool": "other",
+     "hzw": true
+    },
+    "料": {
+     "strokes": 10,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "姑": {
+     "strokes": 8,
+     "pool": "other",
+     "hzw": true
+    },
+    "釀": {
+     "strokes": 24,
+     "pool": "trad",
+     "hzw": true
+    },
+    "蔚": {
+     "strokes": 14,
+     "pool": "other",
+     "hzw": true
+    },
+    "慮": {
+     "strokes": 15,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "励": {
+     "strokes": 7,
+     "pool": "joyo",
+     "hzw": true
+    }
+   }
+  },
+  "dev-extra": {
+   "label": "More development characters",
+   "tag": "dev",
+   "description": "Broader coverage for tuning and training experiments; saved in samples/.",
+   "chars": [
+    "九",
+    "宗",
+    "腔",
+    "卷",
+    "匠",
+    "精",
+    "腎",
+    "恃",
+    "舍",
+    "滓",
+    "至",
+    "乙",
+    "釣",
+    "晟",
+    "居",
+    "早",
+    "厄",
+    "扣",
+    "狗",
+    "称",
+    "顔",
+    "媛",
+    "劈",
+    "裝",
+    "婚",
+    "胖",
+    "纏",
+    "暴",
+    "榊",
+    "蛤",
+    "鑼",
+    "籾",
+    "講",
+    "宋",
+    "鯉",
+    "扇",
+    "天",
+    "優",
+    "慷",
+    "丸",
+    "謝",
+    "燦",
+    "蠻",
+    "踏",
+    "秦",
+    "柵",
+    "嚥",
+    "過",
+    "襯",
+    "婉",
+    "李",
+    "脱",
+    "落",
+    "讚",
+    "躁",
+    "桐",
+    "奮",
+    "粹",
+    "雕",
+    "窺",
+    "虐",
+    "瀑",
+    "塙",
+    "催",
+    "搗",
+    "猴",
+    "珂",
+    "夢",
+    "捐",
+    "畜",
+    "羞",
+    "櫃",
+    "粥",
+    "澪",
+    "巌",
+    "懊",
+    "在",
+    "礦",
+    "妥",
+    "餅",
+    "几",
+    "玖",
+    "緋",
+    "鱒",
+    "艘",
+    "妄",
+    "択",
+    "打",
+    "箱",
+    "辺",
+    "捺",
+    "分",
+    "所",
+    "蠅",
+    "匿",
+    "麦",
+    "貰",
+    "籍",
+    "肴",
+    "罐",
+    "億",
+    "尾",
+    "申",
+    "穫",
+    "詫",
+    "圃",
+    "博",
+    "共",
+    "牧",
+    "壁",
+    "廻",
+    "便",
+    "紛",
+    "廚",
+    "鷺",
+    "戴",
+    "饒",
+    "副",
+    "歌",
+    "竊",
+    "科",
+    "粧",
+    "亨",
+    "縛",
+    "掘",
+    "祝",
+    "機",
+    "床",
+    "徹",
+    "駝",
+    "泄",
+    "批",
+    "髦",
+    "嘲",
+    "与",
+    "男",
+    "埃",
+    "群",
+    "丈",
+    "緩",
+    "及",
+    "韓",
+    "遭",
+    "韻",
+    "弱",
+    "墳",
+    "黎",
+    "曇",
+    "缸",
+    "黏",
+    "朦",
+    "誠",
+    "眸",
+    "殴",
+    "丞",
+    "臉",
+    "閥",
+    "跪",
+    "肚",
+    "礁",
+    "匁",
+    "吮",
+    "朧",
+    "井",
+    "冰",
+    "制",
+    "耐",
+    "旺",
+    "融",
+    "樽",
+    "渚",
+    "蕩",
+    "歹",
+    "腿",
+    "喘",
+    "裸",
+    "殖",
+    "紗",
+    "悴",
+    "寢",
+    "絲",
+    "仇",
+    "剖",
+    "閤",
+    "礎",
+    "鶏",
+    "歳",
+    "腸",
+    "箸",
+    "凍",
+    "噬",
+    "沼",
+    "答",
+    "捧",
+    "聳",
+    "追",
+    "方",
+    "曉",
+    "慈",
+    "際",
+    "扱",
+    "嫡",
+    "轟",
+    "赳",
+    "滝",
+    "叡",
+    "露",
+    "巖",
+    "儲",
+    "銷",
+    "慧",
+    "娯",
+    "哲",
+    "邀",
+    "汀",
+    "賀",
+    "籌",
+    "獵",
+    "楯",
+    "柄",
+    "凋",
+    "聯",
+    "脩",
+    "転",
+    "墅",
+    "虱",
+    "鎭",
+    "勿",
+    "癖",
+    "核",
+    "弛",
+    "惑",
+    "描",
+    "稽",
+    "丁",
+    "尚",
+    "当",
+    "而",
+    "仗",
+    "育",
+    "脳",
+    "橋",
+    "迪",
+    "峯",
+    "威",
+    "乎",
+    "必",
+    "梳",
+    "汪",
+    "灌",
+    "密",
+    "詔",
+    "邏",
+    "戻",
+    "惇",
+    "壊",
+    "洋",
+    "槍",
+    "淹",
+    "呵",
+    "貧",
+    "杵",
+    "稚",
+    "菱",
+    "璽",
+    "阪",
+    "額",
+    "掣",
+    "喃",
+    "礙",
+    "叉",
+    "枯",
+    "圏",
+    "酬",
+    "魄",
+    "瓷",
+    "他",
+    "募",
+    "皆",
+    "猛",
+    "坂",
+    "貸",
+    "奬",
+    "恤",
+    "召",
+    "紀",
+    "卸",
+    "札",
+    "溪",
+    "汽",
+    "截",
+    "麓",
+    "依",
+    "釈",
+    "弊",
+    "尻",
+    "囲",
+    "庚",
+    "魔",
+    "阜"
+   ],
+   "info": {
+    "九": {
+     "strokes": 2,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "宗": {
+     "strokes": 8,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "腔": {
+     "strokes": 12,
+     "pool": "trad",
+     "hzw": true
+    },
+    "卷": {
+     "strokes": 8,
+     "pool": "trad",
+     "hzw": true
+    },
+    "匠": {
+     "strokes": 6,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "精": {
+     "strokes": 14,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "腎": {
+     "strokes": 12,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "恃": {
+     "strokes": 9,
+     "pool": "other",
+     "hzw": true
+    },
+    "舍": {
+     "strokes": 8,
+     "pool": "trad",
+     "hzw": true
+    },
+    "滓": {
+     "strokes": 13,
+     "pool": "other",
+     "hzw": true
+    },
+    "至": {
+     "strokes": 6,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "乙": {
+     "strokes": 1,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "釣": {
+     "strokes": 11,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "晟": {
+     "strokes": 11,
+     "pool": "trad",
+     "hzw": true
+    },
+    "居": {
+     "strokes": 8,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "早": {
+     "strokes": 6,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "厄": {
+     "strokes": 4,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "扣": {
+     "strokes": 6,
+     "pool": "other",
+     "hzw": true
+    },
+    "狗": {
+     "strokes": 8,
+     "pool": "other",
+     "hzw": true
+    },
+    "称": {
+     "strokes": 10,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "顔": {
+     "strokes": 18,
+     "pool": "joyo",
+     "hzw": false
+    },
+    "媛": {
+     "strokes": 12,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "劈": {
+     "strokes": 15,
+     "pool": "other",
+     "hzw": true
+    },
+    "裝": {
+     "strokes": 13,
+     "pool": "trad",
+     "hzw": true
+    },
+    "婚": {
+     "strokes": 11,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "胖": {
+     "strokes": 9,
+     "pool": "other",
+     "hzw": true
+    },
+    "纏": {
+     "strokes": 21,
+     "pool": "trad",
+     "hzw": true
+    },
+    "暴": {
+     "strokes": 15,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "榊": {
+     "strokes": 13,
+     "pool": "trad",
+     "hzw": false
+    },
+    "蛤": {
+     "strokes": 12,
+     "pool": "other",
+     "hzw": true
+    },
+    "鑼": {
+     "strokes": 27,
+     "pool": "trad",
+     "hzw": true
+    },
+    "籾": {
+     "strokes": 9,
+     "pool": "trad",
+     "hzw": false
+    },
+    "講": {
+     "strokes": 17,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "宋": {
+     "strokes": 7,
+     "pool": "trad",
+     "hzw": true
+    },
+    "鯉": {
+     "strokes": 18,
+     "pool": "trad",
+     "hzw": true
+    },
+    "扇": {
+     "strokes": 10,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "天": {
+     "strokes": 4,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "優": {
+     "strokes": 17,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "慷": {
+     "strokes": 14,
+     "pool": "other",
+     "hzw": true
+    },
+    "丸": {
+     "strokes": 3,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "謝": {
+     "strokes": 17,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "燦": {
+     "strokes": 17,
+     "pool": "trad",
+     "hzw": true
+    },
+    "蠻": {
+     "strokes": 25,
+     "pool": "trad",
+     "hzw": true
+    },
+    "踏": {
+     "strokes": 15,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "秦": {
+     "strokes": 10,
+     "pool": "trad",
+     "hzw": true
+    },
+    "柵": {
+     "strokes": 9,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "嚥": {
+     "strokes": 19,
+     "pool": "other",
+     "hzw": true
+    },
+    "過": {
+     "strokes": 13,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "襯": {
+     "strokes": 21,
+     "pool": "trad",
+     "hzw": true
+    },
+    "婉": {
+     "strokes": 11,
+     "pool": "other",
+     "hzw": true
+    },
+    "李": {
+     "strokes": 7,
+     "pool": "trad",
+     "hzw": true
+    },
+    "脱": {
+     "strokes": 11,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "落": {
+     "strokes": 12,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "讚": {
+     "strokes": 26,
+     "pool": "trad",
+     "hzw": true
+    },
+    "躁": {
+     "strokes": 20,
+     "pool": "other",
+     "hzw": true
+    },
+    "桐": {
+     "strokes": 10,
+     "pool": "trad",
+     "hzw": true
+    },
+    "奮": {
+     "strokes": 16,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "粹": {
+     "strokes": 14,
+     "pool": "trad",
+     "hzw": true
+    },
+    "雕": {
+     "strokes": 16,
+     "pool": "other",
+     "hzw": true
+    },
+    "窺": {
+     "strokes": 16,
+     "pool": "trad",
+     "hzw": true
+    },
+    "虐": {
+     "strokes": 9,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "瀑": {
+     "strokes": 18,
+     "pool": "other",
+     "hzw": true
+    },
+    "塙": {
+     "strokes": 13,
+     "pool": "trad",
+     "hzw": false
+    },
+    "催": {
+     "strokes": 13,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "搗": {
+     "strokes": 13,
+     "pool": "trad",
+     "hzw": true
+    },
+    "猴": {
+     "strokes": 12,
+     "pool": "other",
+     "hzw": true
+    },
+    "珂": {
+     "strokes": 9,
+     "pool": "trad",
+     "hzw": true
+    },
+    "夢": {
+     "strokes": 14,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "捐": {
+     "strokes": 10,
+     "pool": "other",
+     "hzw": true
+    },
+    "畜": {
+     "strokes": 10,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "羞": {
+     "strokes": 10,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "櫃": {
+     "strokes": 18,
+     "pool": "trad",
+     "hzw": true
+    },
+    "粥": {
+     "strokes": 12,
+     "pool": "trad",
+     "hzw": true
+    },
+    "澪": {
+     "strokes": 16,
+     "pool": "trad",
+     "hzw": false
+    },
+    "巌": {
+     "strokes": 19,
+     "pool": "trad",
+     "hzw": false
+    },
+    "懊": {
+     "strokes": 15,
+     "pool": "other",
+     "hzw": true
+    },
+    "在": {
+     "strokes": 6,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "礦": {
+     "strokes": 19,
+     "pool": "trad",
+     "hzw": true
+    },
+    "妥": {
+     "strokes": 7,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "餅": {
+     "strokes": 14,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "几": {
+     "strokes": 2,
+     "pool": "trad",
+     "hzw": true
+    },
+    "玖": {
+     "strokes": 7,
+     "pool": "trad",
+     "hzw": true
+    },
+    "緋": {
+     "strokes": 14,
+     "pool": "trad",
+     "hzw": true
+    },
+    "鱒": {
+     "strokes": 23,
+     "pool": "trad",
+     "hzw": true
+    },
+    "艘": {
+     "strokes": 15,
+     "pool": "other",
+     "hzw": true
+    },
+    "妄": {
+     "strokes": 6,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "択": {
+     "strokes": 7,
+     "pool": "joyo",
+     "hzw": false
+    },
+    "打": {
+     "strokes": 5,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "箱": {
+     "strokes": 15,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "辺": {
+     "strokes": 5,
+     "pool": "joyo",
+     "hzw": false
+    },
+    "捺": {
+     "strokes": 11,
+     "pool": "trad",
+     "hzw": true
+    },
+    "分": {
+     "strokes": 4,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "所": {
+     "strokes": 8,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "蠅": {
+     "strokes": 19,
+     "pool": "trad",
+     "hzw": true
+    },
+    "匿": {
+     "strokes": 11,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "麦": {
+     "strokes": 7,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "貰": {
+     "strokes": 12,
+     "pool": "trad",
+     "hzw": false
+    },
+    "籍": {
+     "strokes": 20,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "肴": {
+     "strokes": 8,
+     "pool": "trad",
+     "hzw": true
+    },
+    "罐": {
+     "strokes": 23,
+     "pool": "other",
+     "hzw": true
+    },
+    "億": {
+     "strokes": 15,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "尾": {
+     "strokes": 7,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "申": {
+     "strokes": 5,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "穫": {
+     "strokes": 18,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "詫": {
+     "strokes": 13,
+     "pool": "trad",
+     "hzw": true
+    },
+    "圃": {
+     "strokes": 10,
+     "pool": "trad",
+     "hzw": true
+    },
+    "博": {
+     "strokes": 12,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "共": {
+     "strokes": 6,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "牧": {
+     "strokes": 8,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "壁": {
+     "strokes": 16,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "廻": {
+     "strokes": 9,
+     "pool": "trad",
+     "hzw": false
+    },
+    "便": {
+     "strokes": 9,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "紛": {
+     "strokes": 10,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "廚": {
+     "strokes": 15,
+     "pool": "trad",
+     "hzw": true
+    },
+    "鷺": {
+     "strokes": 24,
+     "pool": "trad",
+     "hzw": true
+    },
+    "戴": {
+     "strokes": 17,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "饒": {
+     "strokes": 20,
+     "pool": "trad",
+     "hzw": true
+    },
+    "副": {
+     "strokes": 11,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "歌": {
+     "strokes": 14,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "竊": {
+     "strokes": 22,
+     "pool": "trad",
+     "hzw": true
+    },
+    "科": {
+     "strokes": 9,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "粧": {
+     "strokes": 12,
+     "pool": "joyo",
+     "hzw": false
+    },
+    "亨": {
+     "strokes": 7,
+     "pool": "trad",
+     "hzw": true
+    },
+    "縛": {
+     "strokes": 16,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "掘": {
+     "strokes": 11,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "祝": {
+     "strokes": 10,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "機": {
+     "strokes": 16,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "床": {
+     "strokes": 7,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "徹": {
+     "strokes": 15,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "駝": {
+     "strokes": 15,
+     "pool": "trad",
+     "hzw": true
+    },
+    "泄": {
+     "strokes": 8,
+     "pool": "other",
+     "hzw": true
+    },
+    "批": {
+     "strokes": 7,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "髦": {
+     "strokes": 14,
+     "pool": "other",
+     "hzw": true
+    },
+    "嘲": {
+     "strokes": 15,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "与": {
+     "strokes": 3,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "男": {
+     "strokes": 7,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "埃": {
+     "strokes": 10,
+     "pool": "other",
+     "hzw": true
+    },
+    "群": {
+     "strokes": 13,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "丈": {
+     "strokes": 3,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "緩": {
+     "strokes": 15,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "及": {
+     "strokes": 4,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "韓": {
+     "strokes": 17,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "遭": {
+     "strokes": 14,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "韻": {
+     "strokes": 19,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "弱": {
+     "strokes": 10,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "墳": {
+     "strokes": 15,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "黎": {
+     "strokes": 15,
+     "pool": "trad",
+     "hzw": true
+    },
+    "曇": {
+     "strokes": 16,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "缸": {
+     "strokes": 9,
+     "pool": "other",
+     "hzw": true
+    },
+    "黏": {
+     "strokes": 17,
+     "pool": "other",
+     "hzw": true
+    },
+    "朦": {
+     "strokes": 17,
+     "pool": "other",
+     "hzw": true
+    },
+    "誠": {
+     "strokes": 13,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "眸": {
+     "strokes": 11,
+     "pool": "trad",
+     "hzw": true
+    },
+    "殴": {
+     "strokes": 8,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "丞": {
+     "strokes": 6,
+     "pool": "trad",
+     "hzw": true
+    },
+    "臉": {
+     "strokes": 17,
+     "pool": "trad",
+     "hzw": true
+    },
+    "閥": {
+     "strokes": 14,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "跪": {
+     "strokes": 13,
+     "pool": "other",
+     "hzw": true
+    },
+    "肚": {
+     "strokes": 7,
+     "pool": "other",
+     "hzw": true
+    },
+    "礁": {
+     "strokes": 17,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "匁": {
+     "strokes": 4,
+     "pool": "trad",
+     "hzw": false
+    },
+    "吮": {
+     "strokes": 7,
+     "pool": "other",
+     "hzw": true
+    },
+    "朧": {
+     "strokes": 20,
+     "pool": "trad",
+     "hzw": true
+    },
+    "井": {
+     "strokes": 4,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "冰": {
+     "strokes": 6,
+     "pool": "other",
+     "hzw": true
+    },
+    "制": {
+     "strokes": 8,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "耐": {
+     "strokes": 9,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "旺": {
+     "strokes": 8,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "融": {
+     "strokes": 16,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "樽": {
+     "strokes": 16,
+     "pool": "trad",
+     "hzw": true
+    },
+    "渚": {
+     "strokes": 12,
+     "pool": "trad",
+     "hzw": true
+    },
+    "蕩": {
+     "strokes": 15,
+     "pool": "trad",
+     "hzw": true
+    },
+    "歹": {
+     "strokes": 4,
+     "pool": "other",
+     "hzw": true
+    },
+    "腿": {
+     "strokes": 13,
+     "pool": "other",
+     "hzw": true
+    },
+    "喘": {
+     "strokes": 12,
+     "pool": "other",
+     "hzw": true
+    },
+    "裸": {
+     "strokes": 13,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "殖": {
+     "strokes": 12,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "紗": {
+     "strokes": 10,
+     "pool": "trad",
+     "hzw": true
+    },
+    "悴": {
+     "strokes": 11,
+     "pool": "other",
+     "hzw": true
+    },
+    "寢": {
+     "strokes": 14,
+     "pool": "trad",
+     "hzw": true
+    },
+    "絲": {
+     "strokes": 12,
+     "pool": "trad",
+     "hzw": true
+    },
+    "仇": {
+     "strokes": 4,
+     "pool": "other",
+     "hzw": true
+    },
+    "剖": {
+     "strokes": 10,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "閤": {
+     "strokes": 14,
+     "pool": "trad",
+     "hzw": true
+    },
+    "礎": {
+     "strokes": 18,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "鶏": {
+     "strokes": 19,
+     "pool": "joyo",
+     "hzw": false
+    },
+    "歳": {
+     "strokes": 13,
+     "pool": "joyo",
+     "hzw": false
+    },
+    "腸": {
+     "strokes": 13,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "箸": {
+     "strokes": 14,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "凍": {
+     "strokes": 10,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "噬": {
+     "strokes": 16,
+     "pool": "other",
+     "hzw": true
+    },
+    "沼": {
+     "strokes": 8,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "答": {
+     "strokes": 12,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "捧": {
+     "strokes": 11,
+     "pool": "trad",
+     "hzw": true
+    },
+    "聳": {
+     "strokes": 17,
+     "pool": "trad",
+     "hzw": true
+    },
+    "追": {
+     "strokes": 10,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "方": {
+     "strokes": 4,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "曉": {
+     "strokes": 16,
+     "pool": "trad",
+     "hzw": true
+    },
+    "慈": {
+     "strokes": 13,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "際": {
+     "strokes": 14,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "扱": {
+     "strokes": 6,
+     "pool": "joyo",
+     "hzw": false
+    },
+    "嫡": {
+     "strokes": 14,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "轟": {
+     "strokes": 21,
+     "pool": "trad",
+     "hzw": true
+    },
+    "赳": {
+     "strokes": 9,
+     "pool": "trad",
+     "hzw": true
+    },
+    "滝": {
+     "strokes": 13,
+     "pool": "joyo",
+     "hzw": false
+    },
+    "叡": {
+     "strokes": 16,
+     "pool": "trad",
+     "hzw": false
+    },
+    "露": {
+     "strokes": 21,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "巖": {
+     "strokes": 23,
+     "pool": "trad",
+     "hzw": true
+    },
+    "儲": {
+     "strokes": 17,
+     "pool": "trad",
+     "hzw": true
+    },
+    "銷": {
+     "strokes": 15,
+     "pool": "trad",
+     "hzw": true
+    },
+    "慧": {
+     "strokes": 15,
+     "pool": "trad",
+     "hzw": true
+    },
+    "娯": {
+     "strokes": 10,
+     "pool": "joyo",
+     "hzw": false
+    },
+    "哲": {
+     "strokes": 10,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "邀": {
+     "strokes": 16,
+     "pool": "other",
+     "hzw": true
+    },
+    "汀": {
+     "strokes": 5,
+     "pool": "trad",
+     "hzw": true
+    },
+    "賀": {
+     "strokes": 12,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "籌": {
+     "strokes": 20,
+     "pool": "trad",
+     "hzw": true
+    },
+    "獵": {
+     "strokes": 18,
+     "pool": "trad",
+     "hzw": true
+    },
+    "楯": {
+     "strokes": 13,
+     "pool": "trad",
+     "hzw": false
+    },
+    "柄": {
+     "strokes": 9,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "凋": {
+     "strokes": 10,
+     "pool": "other",
+     "hzw": true
+    },
+    "聯": {
+     "strokes": 17,
+     "pool": "trad",
+     "hzw": true
+    },
+    "脩": {
+     "strokes": 11,
+     "pool": "trad",
+     "hzw": true
+    },
+    "転": {
+     "strokes": 11,
+     "pool": "joyo",
+     "hzw": false
+    },
+    "墅": {
+     "strokes": 14,
+     "pool": "other",
+     "hzw": true
+    },
+    "虱": {
+     "strokes": 8,
+     "pool": "other",
+     "hzw": true
+    },
+    "鎭": {
+     "strokes": 18,
+     "pool": "trad",
+     "hzw": false
+    },
+    "勿": {
+     "strokes": 4,
+     "pool": "trad",
+     "hzw": true
+    },
+    "癖": {
+     "strokes": 18,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "核": {
+     "strokes": 10,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "弛": {
+     "strokes": 6,
+     "pool": "trad",
+     "hzw": true
+    },
+    "惑": {
+     "strokes": 12,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "描": {
+     "strokes": 11,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "稽": {
+     "strokes": 15,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "丁": {
+     "strokes": 2,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "尚": {
+     "strokes": 8,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "当": {
+     "strokes": 6,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "而": {
+     "strokes": 6,
+     "pool": "trad",
+     "hzw": true
+    },
+    "仗": {
+     "strokes": 5,
+     "pool": "other",
+     "hzw": true
+    },
+    "育": {
+     "strokes": 8,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "脳": {
+     "strokes": 11,
+     "pool": "joyo",
+     "hzw": false
+    },
+    "橋": {
+     "strokes": 16,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "迪": {
+     "strokes": 9,
+     "pool": "trad",
+     "hzw": true
+    },
+    "峯": {
+     "strokes": 10,
+     "pool": "trad",
+     "hzw": false
+    },
+    "威": {
+     "strokes": 9,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "乎": {
+     "strokes": 5,
+     "pool": "trad",
+     "hzw": true
+    },
+    "必": {
+     "strokes": 5,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "梳": {
+     "strokes": 11,
+     "pool": "other",
+     "hzw": true
+    },
+    "汪": {
+     "strokes": 7,
+     "pool": "other",
+     "hzw": true
+    },
+    "灌": {
+     "strokes": 21,
+     "pool": "other",
+     "hzw": true
+    },
+    "密": {
+     "strokes": 11,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "詔": {
+     "strokes": 12,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "邏": {
+     "strokes": 22,
+     "pool": "trad",
+     "hzw": true
+    },
+    "戻": {
+     "strokes": 7,
+     "pool": "joyo",
+     "hzw": false
+    },
+    "惇": {
+     "strokes": 11,
+     "pool": "trad",
+     "hzw": false
+    },
+    "壊": {
+     "strokes": 16,
+     "pool": "joyo",
+     "hzw": false
+    },
+    "洋": {
+     "strokes": 9,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "槍": {
+     "strokes": 14,
+     "pool": "trad",
+     "hzw": true
+    },
+    "淹": {
+     "strokes": 11,
+     "pool": "other",
+     "hzw": true
+    },
+    "呵": {
+     "strokes": 8,
+     "pool": "other",
+     "hzw": true
+    },
+    "貧": {
+     "strokes": 11,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "杵": {
+     "strokes": 8,
+     "pool": "trad",
+     "hzw": true
+    },
+    "稚": {
+     "strokes": 13,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "菱": {
+     "strokes": 12,
+     "pool": "trad",
+     "hzw": true
+    },
+    "璽": {
+     "strokes": 19,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "阪": {
+     "strokes": 6,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "額": {
+     "strokes": 18,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "掣": {
+     "strokes": 12,
+     "pool": "other",
+     "hzw": true
+    },
+    "喃": {
+     "strokes": 12,
+     "pool": "other",
+     "hzw": true
+    },
+    "礙": {
+     "strokes": 19,
+     "pool": "trad",
+     "hzw": true
+    },
+    "叉": {
+     "strokes": 3,
+     "pool": "trad",
+     "hzw": true
+    },
+    "枯": {
+     "strokes": 9,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "圏": {
+     "strokes": 12,
+     "pool": "joyo",
+     "hzw": false
+    },
+    "酬": {
+     "strokes": 13,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "魄": {
+     "strokes": 15,
+     "pool": "other",
+     "hzw": true
+    },
+    "瓷": {
+     "strokes": 10,
+     "pool": "other",
+     "hzw": true
+    },
+    "他": {
+     "strokes": 5,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "募": {
+     "strokes": 12,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "皆": {
+     "strokes": 9,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "猛": {
+     "strokes": 11,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "坂": {
+     "strokes": 7,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "貸": {
+     "strokes": 12,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "奬": {
+     "strokes": 14,
+     "pool": "trad",
+     "hzw": false
+    },
+    "恤": {
+     "strokes": 9,
+     "pool": "other",
+     "hzw": true
+    },
+    "召": {
+     "strokes": 5,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "紀": {
+     "strokes": 9,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "卸": {
+     "strokes": 9,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "札": {
+     "strokes": 5,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "溪": {
+     "strokes": 13,
+     "pool": "other",
+     "hzw": true
+    },
+    "汽": {
+     "strokes": 7,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "截": {
+     "strokes": 14,
+     "pool": "other",
+     "hzw": true
+    },
+    "麓": {
+     "strokes": 19,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "依": {
+     "strokes": 8,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "釈": {
+     "strokes": 11,
+     "pool": "joyo",
+     "hzw": false
+    },
+    "弊": {
+     "strokes": 14,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "尻": {
+     "strokes": 5,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "囲": {
+     "strokes": 7,
+     "pool": "joyo",
+     "hzw": false
+    },
+    "庚": {
+     "strokes": 8,
+     "pool": "trad",
+     "hzw": true
+    },
+    "魔": {
+     "strokes": 20,
+     "pool": "joyo",
+     "hzw": true
+    },
+    "阜": {
+     "strokes": 8,
+     "pool": "joyo",
+     "hzw": true
+    }
+   }
+  }
+ }
+}

@@ -139,6 +139,10 @@ or train your own (see [ml/README.md](ml/README.md)). Without weights the app ru
 ./build/handwriting_app --ja-alt experiments/hzw-package/stage/marinamoji-handwriting-ja-hzw-experimental/model/handwriting-ja-hzw-experimental.model
 ```
 
+### Collecting samples
+
+**Writer…** records who is writing and **Practice** prompts characters and saves them with that metadata; see [docs/sample-protocol.md](docs/sample-protocol.md).
+
 ### Quick start
 
 1. Launch the app and choose Japanese, Traditional Chinese, or Both.
