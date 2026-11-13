@@ -243,6 +243,12 @@ add_executable(stroke_count_test tests/stroke_count_test.cpp)
 target_link_libraries(stroke_count_test PRIVATE handwriting_backend)
 add_test(NAME stroke_count_test COMMAND stroke_count_test)
 
+add_executable(backend_alt_model_test tests/backend_alt_model_test.cpp)
+target_link_libraries(backend_alt_model_test PRIVATE handwriting_backend)
+target_compile_definitions(backend_alt_model_test PRIVATE
+  HANDWRITING_DEFAULT_MODEL_DIR="${CMAKE_CURRENT_SOURCE_DIR}/models")
+add_test(NAME backend_alt_model_test COMMAND backend_alt_model_test)
+
 add_executable(neural_weights_test tests/neural_weights_test.cpp)
 target_include_directories(neural_weights_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(neural_weights_test PRIVATE Qt6::Core)

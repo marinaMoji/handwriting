@@ -131,6 +131,14 @@ INKNET_URL=https://... scripts/fetch_inknet.sh         # or download, once a loc
 
 or train your own (see [ml/README.md](ml/README.md)). Without weights the app runs on Zinnia alone and says so in the status bar. `--no-neural` or `HANDWRITING_NEURAL=off` turns the hybrid off, for comparison.
 
+### Alternative Japanese model
+
+`--ja-alt FILE`, `$HANDWRITING_JA_ALT` or `MODELS_DIR/handwriting-ja-alt.model` loads a second Japanese Zinnia model next to the default; an **Alt. JA model** checkbox then switches between them in the window (the hybrid keeps working with either). The default never changes by itself. The staged Hanzi Writer-enhanced model of [docs/licensing/handwriting/](docs/licensing/handwriting/README.md) is meant to be tried this way, for local testing only until the legal review (issue #21) is resolved:
+
+```bash
+./build/handwriting_app --ja-alt experiments/hzw-package/stage/marinamoji-handwriting-ja-hzw-experimental/model/handwriting-ja-hzw-experimental.model
+```
+
 ### Quick start
 
 1. Launch the app and choose Japanese, Traditional Chinese, or Both.
@@ -142,7 +150,7 @@ Troubleshooting: the status bar explains when the trackpad could not be used (fo
 ## Drawing input
 
 - **Click-drag** (mouse or trackpad click): press, draw a stroke, release. Repeat for each stroke.
-- **Hold-to-write** (trackpad-friendly): hold the key at the top-left of the main block (left of **1**: `` ` `` on US/UK, **²** on French AZERTY, **§** on many Nordic/Swiss Mac layouts), then write with your finger on the trackpad. The physical key is matched by hardware code (macOS key code, Windows scan code `0x29`, X11/Linux keycode 49), so it works on any layout. It reads absolute finger positions from the trackpad (public **NSTouch** API on macOS, evdev on Linux, Raw Input on Windows), and learns the real trackpad dimensions from the device: the whole trackpad maps to a pad-shaped drawing area (no dead zones, no stretching). Write anywhere at any size: on recognition the ink is cropped to its bounding box and fitted to the 300×300 recognizer canvas. Lift between strokes. `HANDWRITING_PAD_ASPECT` forces a pad aspect (default: read from the device, 1.6 until the first touch). If that path is unavailable, cursor movement is used as a fallback. Release the key when finished (switching apps also ends hold). The key is ignored while typing in a text field. Click-drag still works for mouse users.
+- **Hold-to-write** (trackpad-friendly): hold **F12** (for writing with the left hand, so the right hand can hold the key; on Mac laptops it needs **fn** unless function keys are set to standard) or the key at the top-left of the main block (left of **1**: `` ` `` on US/UK, **²** on French AZERTY, **§** on many Nordic/Swiss Mac layouts), then write with your finger on the trackpad. The physical key is matched by hardware code (macOS key code, Windows scan code `0x29`, X11/Linux keycode 49), so it works on any layout. It reads absolute finger positions from the trackpad (public **NSTouch** API on macOS, evdev on Linux, Raw Input on Windows), and learns the real trackpad dimensions from the device: the whole trackpad maps to a pad-shaped drawing area (no dead zones, no stretching). Write anywhere at any size: on recognition the ink is cropped to its bounding box and fitted to the 300×300 recognizer canvas. Lift between strokes. `HANDWRITING_PAD_ASPECT` forces a pad aspect (default: read from the device, 1.6 until the first touch). If that path is unavailable, cursor movement is used as a fallback. Release the key when finished (switching apps also ends hold). The key is ignored while typing in a text field. Click-drag still works for mouse users.
 
 ## Trackpad backends
 

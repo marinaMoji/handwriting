@@ -46,7 +46,17 @@ class ZinniaBackend {
 
   bool japaneseReady() const { return japaneseReady_; }
   bool traditionalReady() const { return traditionalReady_; }
-  QString japaneseModelPath() const { return japaneseModelPath_; }
+  // The Japanese model recognition currently uses (the alternative one when switched on).
+  QString japaneseModelPath() const { return useAlternative_ ? alternativePath_ : japaneseModelPath_; }
+  QString defaultJapaneseModelPath() const { return japaneseModelPath_; }
+
+  // An optional second Japanese model that can be switched in at run time (compare models
+  // without restarting). Loaded after loadModels(); the default model stays the default.
+  bool loadAlternativeJapanese(const QString& path, QString* errorOut = nullptr);
+  bool hasAlternativeJapanese() const { return !alternativePath_.isEmpty(); }
+  QString alternativeJapanesePath() const { return alternativePath_; }
+  void useAlternativeJapanese(bool on);
+  bool usingAlternativeJapanese() const { return useAlternative_; }
   QString traditionalModelPath() const { return traditionalModelPath_; }
 
   RecognitionResult recognize(const QVector<Stroke>& strokes,
@@ -63,4 +73,6 @@ class ZinniaBackend {
   bool traditionalReady_ = false;
   QString japaneseModelPath_;
   QString traditionalModelPath_;
+  QString alternativePath_;
+  bool useAlternative_ = false;
 };

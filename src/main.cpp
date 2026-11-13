@@ -4,6 +4,8 @@
 #include "ZinniaBackend.h"
 
 #include <QApplication>
+#include <QDir>
+#include <QFileInfo>
 #include <QElapsedTimer>
 #include <QMessageBox>
 #include <QStringList>
@@ -12,11 +14,13 @@
 #define HANDWRITING_DEFAULT_MODEL_DIR "models"
 #endif
 
-// Usage: handwriting_app [MODELS_DIR] [--inknet FILE] [--no-neural]
+// Usage: handwriting_app [MODELS_DIR] [--inknet FILE] [--no-neural] [--ja-alt FILE]
 //   MODELS_DIR  holds handwriting-ja.model and handwriting-zh_TW.model (default: models/)
 //   --inknet    InkNet weights for hybrid recognition (default: $HANDWRITING_INKNET,
 //               MODELS_DIR/inknet.bin, then data/inknet.bin)
 //   --no-neural Zinnia only (same as HANDWRITING_NEURAL=off)
+//   --ja-alt    a second Japanese Zinnia model, switchable in the window (default:
+//               $HANDWRITING_JA_ALT, then MODELS_DIR/handwriting-ja-alt.model if present)
 int main(int argc, char* argv[]) {
   QApplication app(argc, argv);
   app.setApplicationName(QStringLiteral("handwriting"));
@@ -24,12 +28,15 @@ int main(int argc, char* argv[]) {
 
   QString modelDir = QString::fromUtf8(HANDWRITING_DEFAULT_MODEL_DIR);
   QString inknetPath;
+  QString jaAltPath;
   bool noNeural = neural_weights::disabledByEnvironment();
   const QStringList args = app.arguments().mid(1);
   bool haveModelDir = false;
   for (int i = 0; i < args.size(); ++i) {
     if (args[i] == QLatin1String("--inknet") && i + 1 < args.size()) {
       inknetPath = args[++i];
+    } else if (args[i] == QLatin1String("--ja-alt") && i + 1 < args.size()) {
+      jaAltPath = args[++i];
     } else if (args[i] == QLatin1String("--no-neural")) {
       noNeural = true;
     } else if (!haveModelDir && !args[i].startsWith(QLatin1String("--"))) {
@@ -47,6 +54,18 @@ int main(int argc, char* argv[]) {
                     "scripts/fetch_models.sh.")
             .arg(error));
     return 1;
+  }
+
+  // Optional second Japanese model, switched in from the window. It never replaces the default.
+  if (jaAltPath.isEmpty()) jaAltPath = qEnvironmentVariable("HANDWRITING_JA_ALT");
+  if (jaAltPath.isEmpty()) {
+    const QString beside = QDir(modelDir).filePath(QStringLiteral("handwriting-ja-alt.model"));
+    if (QFileInfo::exists(beside)) jaAltPath = beside;
+  }
+  QString altNote;
+  if (!jaAltPath.isEmpty() && !backend.loadAlternativeJapanese(jaAltPath, &error)) {
+    altNote = QObject::tr("Alternative Japanese model not loaded: %1").arg(error);
+    qWarning("%s", qPrintable(altNote));
   }
 
   // The order-free net is optional: without weights the app falls back to Zinnia alone.
@@ -73,6 +92,7 @@ int main(int argc, char* argv[]) {
     }
   }
 
+  if (!altNote.isEmpty()) neuralNote = neuralNote.isEmpty() ? altNote : neuralNote + QStringLiteral(" · ") + altNote;
   MainWindow window(&backend, net.loaded() ? &net : nullptr, neuralNote);
   window.show();
   return app.exec();

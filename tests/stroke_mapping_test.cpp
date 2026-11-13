@@ -74,21 +74,26 @@ int main(int argc, char** argv) {
   {
     expect(hold_key::isHoldToWriteKey(Qt::Key_QuoteLeft, 0), "US backtick is hold key");
     expect(hold_key::isHoldToWriteKey(Qt::Key_twosuperior, 0), "AZERTY ² is hold key");
+    expect(hold_key::isHoldToWriteKey(Qt::Key_F12, 0), "F12 is a second hold key");
+    expect(!hold_key::isHoldToWriteKey(Qt::Key_F11, 0), "F11 is not a hold key");
     expect(!hold_key::isHoldToWriteKey(Qt::Key_Space, 0), "Space is not hold key");
     expect(!hold_key::isHoldToWriteKey(Qt::Key_A, 0), "letters are not hold key");
 #ifdef Q_OS_MACOS
     expect(hold_key::isHoldToWriteKey(Qt::Key_twosuperior, hold_key::kMacGraveVirtualKey),
            "mac grave key code matches regardless of layout character");
+    expect(hold_key::isHoldToWriteKey(Qt::Key_F12, hold_key::kMacF12VirtualKey), "mac F12 key code matches");
     expect(!hold_key::isHoldToWriteKey(Qt::Key_QuoteLeft, 0x31),
            "mac key code wins over character when present");
 #elif defined(Q_OS_WIN)
     expect(hold_key::isHoldToWriteKey(Qt::Key_A, 0, hold_key::kWinGraveScanCode),
            "win scan 0x29 matches regardless of layout character");
+    expect(hold_key::isHoldToWriteKey(Qt::Key_A, 0, hold_key::kWinF12ScanCode), "win scan 0x58 (F12) matches");
     expect(!hold_key::isHoldToWriteKey(Qt::Key_QuoteLeft, 0, 0x1E),
            "win scan code wins over character when present");
 #elif defined(Q_OS_LINUX)
     expect(hold_key::isHoldToWriteKey(Qt::Key_A, 0, hold_key::kX11GraveKeycode),
            "X11 keycode 49 matches regardless of layout character");
+    expect(hold_key::isHoldToWriteKey(Qt::Key_A, 0, hold_key::kX11F12Keycode), "X11 keycode 96 (F12) matches");
     expect(!hold_key::isHoldToWriteKey(Qt::Key_QuoteLeft, 0, 30),
            "X11 keycode wins over character when present");
 #endif

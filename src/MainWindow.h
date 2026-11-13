@@ -7,6 +7,7 @@
 
 class DrawingCanvas;
 class CandidatePanel;
+class QCheckBox;
 class QComboBox;
 class QLabel;
 class QLineEdit;
@@ -48,6 +49,7 @@ class MainWindow : public QMainWindow {
   DrawingCanvas* canvas_ = nullptr;
   CandidatePanel* candidates_ = nullptr;
   QComboBox* modeCombo_ = nullptr;
+  QCheckBox* altJaCheck_ = nullptr;
   QLabel* diagnostics_ = nullptr;
   QPushButton* copyButton_ = nullptr;
   QLineEdit* expectedEdit_ = nullptr;

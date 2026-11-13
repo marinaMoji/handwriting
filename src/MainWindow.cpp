@@ -10,6 +10,7 @@
 
 #include <QAbstractSpinBox>
 #include <QApplication>
+#include <QCheckBox>
 #include <QClipboard>
 #include <QDateTime>
 #include <QComboBox>
@@ -76,6 +77,13 @@ MainWindow::MainWindow(ZinniaBackend* backend, const ink::InkNet* net, const QSt
 
   controls->addWidget(new QLabel(tr("Mode:"), controlBar));
   controls->addWidget(modeCombo_, 1);
+  if (backend_->hasAlternativeJapanese()) {
+    altJaCheck_ = new QCheckBox(tr("Alt. JA model"), controlBar);
+    altJaCheck_->setToolTip(tr("Use %1 instead of %2 for Japanese")
+                                .arg(QFileInfo(backend_->alternativeJapanesePath()).fileName(),
+                                     QFileInfo(backend_->defaultJapaneseModelPath()).fileName()));
+    controls->addWidget(altJaCheck_);
+  }
   controls->addWidget(undoBtn);
   controls->addWidget(clearBtn);
   controls->addWidget(copyButton_);
@@ -100,6 +108,14 @@ MainWindow::MainWindow(ZinniaBackend* backend, const ink::InkNet* net, const QSt
           [this](const QString& message) { statusBar()->showMessage(message, 10000); });
   connect(modeCombo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
           &MainWindow::onStrokesChanged);
+  if (altJaCheck_) {
+    connect(altJaCheck_, &QCheckBox::toggled, this, [this](bool on) {
+      backend_->useAlternativeJapanese(on);
+      statusBar()->showMessage(tr("Japanese model: %1")
+                                   .arg(QFileInfo(backend_->japaneseModelPath()).fileName()));
+      onStrokesChanged();
+    });
+  }
   connect(clearBtn, &QPushButton::clicked, this, &MainWindow::clearAll);
   connect(saveSampleButton_, &QPushButton::clicked, this, &MainWindow::saveSample);
   connect(expectedEdit_, &QLineEdit::returnPressed, this, &MainWindow::saveSample);
@@ -117,7 +133,9 @@ MainWindow::MainWindow(ZinniaBackend* backend, const ink::InkNet* net, const QSt
   canvas_->setFocus(Qt::OtherFocusReason);
 
   updateDiagnostics({});
-  const QString engine = net_ ? tr("hybrid (Zinnia + InkNet in Both mode)") : neuralNote_;
+  QString engine = net_ ? tr("hybrid (Zinnia + InkNet in Both mode)") : neuralNote_;
+  if (net_ && !neuralNote_.isEmpty()) engine += QStringLiteral(" · ") + neuralNote_;
+  if (backend_->hasAlternativeJapanese()) engine += tr(" · alt. JA model available");
   statusBar()->showMessage(
       tr("Click-drag or hold ` to write · JA: %1 · TW: %2 · %3")
           .arg(QFileInfo(backend_->japaneseModelPath()).fileName())
@@ -342,6 +360,9 @@ void MainWindow::runRecognition() {
   Recognizer::Options options = recognizerOptions();
   if (hybrid) options.neural = Recognizer::Options::Neural::Hybrid;
   lastEngine_ = hybrid ? tr("hybrid") : tr("Zinnia");
+  if (backend_->usingAlternativeJapanese()) {
+    lastEngine_ += tr(", alt. JA model");
+  }
 
   auto* watcher = new QFutureWatcher<RecognitionResult>(this);
   connect(watcher, &QFutureWatcher<RecognitionResult>::finished, this, [this, watcher, generation]() {

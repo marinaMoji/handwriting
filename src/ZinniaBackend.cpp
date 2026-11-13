@@ -82,8 +82,10 @@ QVector<Candidate> mergeBoth(const QVector<Candidate>& a,
 struct ZinniaBackend::Impl {
   zinnia::Recognizer* japanese = nullptr;
   zinnia::Recognizer* traditional = nullptr;
+  zinnia::Recognizer* japaneseAlt = nullptr;
 
   ~Impl() {
+    delete japaneseAlt;
     delete japanese;
     delete traditional;
   }
@@ -141,6 +143,29 @@ bool ZinniaBackend::loadModels(const QString& modelDir, QString* errorOut) {
   return true;
 }
 
+bool ZinniaBackend::loadAlternativeJapanese(const QString& path, QString* errorOut) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  if (!QFileInfo::exists(path)) {
+    if (errorOut) *errorOut = QStringLiteral("Missing alternative Japanese model: %1").arg(path);
+    return false;
+  }
+  zinnia::Recognizer* r = zinnia::Recognizer::create();
+  if (!r->open(path.toUtf8().constData())) {
+    if (errorOut) *errorOut = QString::fromUtf8(r->what());
+    delete r;
+    return false;
+  }
+  delete impl_->japaneseAlt;
+  impl_->japaneseAlt = r;
+  alternativePath_ = path;
+  return true;
+}
+
+void ZinniaBackend::useAlternativeJapanese(bool on) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  useAlternative_ = on && impl_->japaneseAlt != nullptr;
+}
+
 RecognitionResult ZinniaBackend::recognize(const QVector<Stroke>& strokes,
                                            RecognitionMode mode,
                                            int canvasWidth,
@@ -169,7 +194,8 @@ RecognitionResult ZinniaBackend::recognize(const QVector<Stroke>& strokes,
   QVector<Candidate> ja;
   QVector<Candidate> tw;
   if (mode == RecognitionMode::Japanese || mode == RecognitionMode::Both) {
-    ja = classifyOne(impl_->japanese, *character, QStringLiteral("JA"), topN);
+    ja = classifyOne(useAlternative_ && impl_->japaneseAlt ? impl_->japaneseAlt : impl_->japanese,
+                     *character, QStringLiteral("JA"), topN);
   }
   if (mode == RecognitionMode::TraditionalChinese || mode == RecognitionMode::Both) {
     tw = classifyOne(impl_->traditional, *character, QStringLiteral("TW"), topN);
