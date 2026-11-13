@@ -85,11 +85,26 @@ MainWindow::MainWindow(ZinniaBackend* backend, const ink::InkNet* net, const QSt
   practiceTarget_->setFont(targetFont);
   practiceTarget_->setMinimumHeight(110);
   practiceLayout->addWidget(practiceTarget_);
-  auto* practiceHint = new QLabel(
-      tr("Return: save and next · Backspace: redo this one · →: skip · ←: delete the last saved"),
-      practiceBar_);
-  practiceHint->setAlignment(Qt::AlignCenter);
-  practiceLayout->addWidget(practiceHint);
+  // Buttons for every action (the keys are shortcuts), so nothing depends on knowing the keys.
+  auto* practiceButtons = new QHBoxLayout();
+  auto* saveNextBtn = new QPushButton(tr("Save && next  (Return)"), practiceBar_);
+  saveNextBtn->setDefault(true);
+  QFont boldFont = saveNextBtn->font();
+  boldFont.setBold(true);
+  saveNextBtn->setFont(boldFont);
+  auto* redoBtn = new QPushButton(tr("Redo  (Backspace)"), practiceBar_);
+  auto* skipBtn = new QPushButton(tr("Skip  (→)"), practiceBar_);
+  auto* undoLastBtn = new QPushButton(tr("Delete last saved  (←)"), practiceBar_);
+  for (QPushButton* b : {saveNextBtn, redoBtn, skipBtn, undoLastBtn}) {
+    b->setFocusPolicy(Qt::NoFocus);  // keep keyboard focus on the canvas
+    practiceButtons->addWidget(b);
+  }
+  practiceButtons->setStretch(0, 2);
+  practiceLayout->addLayout(practiceButtons);
+  connect(saveNextBtn, &QPushButton::clicked, this, &MainWindow::practiceSaveNext);
+  connect(redoBtn, &QPushButton::clicked, this, &MainWindow::practiceRedo);
+  connect(skipBtn, &QPushButton::clicked, this, &MainWindow::practiceSkip);
+  connect(undoLastBtn, &QPushButton::clicked, this, &MainWindow::practiceUndoLast);
   practiceBar_->setVisible(false);
   left->addWidget(practiceBar_, /*stretch*/ 0);
 
@@ -590,7 +605,7 @@ void MainWindow::refreshPractice() {
 void MainWindow::practiceSaveNext() {
   if (!practice_ || practice_->finished()) return;
   if (canvas_->strokes().isEmpty()) {
-    statusBar()->showMessage(tr("Write the character first (→ skips it)."), 3000);
+    statusBar()->showMessage(tr("Nothing to save yet: write the character first (Skip moves on without saving)."), 4000);
     return;
   }
   Sample sample;
@@ -607,10 +622,14 @@ void MainWindow::practiceSaveNext() {
     statusBar()->showMessage(tr("Could not save sample: %1").arg(error), 8000);
     return;
   }
+  const QString savedChar = sample.character;
   practice_->saved(path);
   canvas_->clearStrokes();
   refreshPractice();
-  if (practice_->finished()) statusBar()->showMessage(tr("This list is finished. Thank you!"), 8000);
+  statusBar()->showMessage(practice_->finished()
+                               ? tr("Saved %1. This list is finished. Thank you!").arg(savedChar)
+                               : tr("Saved %1 → %2").arg(savedChar, path),
+                           6000);
 }
 
 void MainWindow::practiceRedo() {
