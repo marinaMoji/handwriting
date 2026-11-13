@@ -7,6 +7,12 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
+# Hybrid recognition runs a CNN in plain C++: it is about 4x slower without optimisation
+# (about 440 ms against 170 ms per recognition), so single-config builds default to Release.
+if(NOT CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
+endif()
+
 find_package(Qt6 REQUIRED COMPONENTS Widgets Concurrent)
 
 # --- Zinnia (static, vendored) -------------------------------------------------
@@ -118,6 +124,7 @@ target_compile_definitions(handwriting_smoke PRIVATE
 target_compile_definitions(handwriting_app PRIVATE
   HANDWRITING_DEFAULT_MODEL_DIR="${CMAKE_CURRENT_SOURCE_DIR}/models"
   HANDWRITING_DEFAULT_SAMPLES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/samples"
+  HANDWRITING_DEFAULT_INKNET_PATH="${CMAKE_CURRENT_SOURCE_DIR}/data/inknet.bin"
 )
 
 # --- Unit tests (pure mapping / jump logic) ----------------------------------
@@ -235,6 +242,11 @@ target_link_libraries(dump_charset PRIVATE zinnia)
 add_executable(stroke_count_test tests/stroke_count_test.cpp)
 target_link_libraries(stroke_count_test PRIVATE handwriting_backend)
 add_test(NAME stroke_count_test COMMAND stroke_count_test)
+
+add_executable(neural_weights_test tests/neural_weights_test.cpp)
+target_include_directories(neural_weights_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_libraries(neural_weights_test PRIVATE Qt6::Core)
+add_test(NAME neural_weights_test COMMAND neural_weights_test)
 
 add_executable(ink_net_test tests/ink_net_test.cpp)
 target_link_libraries(ink_net_test PRIVATE handwriting_backend)

@@ -83,7 +83,7 @@ C:\Qt\6.7.0\msvc2019_64\bin\windeployqt.exe build\Release\handwriting_app.exe
 Targets:
 
 - `handwriting_smoke` — headless recognition of a hardcoded stroke sample
-- `handwriting_app` — drawing UI with JA / TW / Both modes
+- `handwriting_app` — drawing UI with JA / TW / Both modes; Both mode uses the Zinnia + InkNet hybrid when the InkNet weights are present
 - `stroke_mapping_test` — pad→canvas mapping, crop/fit, jump detection, hold-key matching
 - `trackpad_source_test` — finger/palm tracking shared by all trackpad backends
 - `ptp_frame_test` — Windows Precision Touchpad frame assembly
@@ -96,8 +96,8 @@ Targets:
 
 ```bash
 ./build/handwriting_app
-# optional: pass a models directory
-./build/handwriting_app /path/to/models
+# optional: pass a models directory and/or InkNet weights
+./build/handwriting_app /path/to/models --inknet /path/to/inknet.bin
 
 # checks
 ./build/handwriting_smoke
@@ -117,6 +117,19 @@ Targets:
 ```
 
 (With a single-config generator such as Ninja, the executables are directly in `build\`.)
+
+### Hybrid recognition (Zinnia + InkNet)
+
+In **Both** mode the app mixes Zinnia (stroke order matters) with InkNet, a small order-free neural net, which is much better at ink whose stroke order or count differs from the templates: on the 214 development samples (one writer) top-1 / top-5 go from 66.8 / 84.1 to 81.3 / 92.1. Latency is about 110 to 160 ms per recognition in a Release build on an Apple M-series laptop; the build defaults to Release for this reason (an unoptimised build is about four times slower). The status bar and diagnostics line say which engine answered. Japanese-only and Traditional-only modes use Zinnia alone. Details: [docs/neural-scope.md](docs/neural-scope.md).
+
+The InkNet weights (24.6 MB, trained on the Tegaki templates only, not committed) are looked up in this order: `--inknet FILE`, `$HANDWRITING_INKNET`, `MODELS_DIR/inknet.bin`, `data/inknet.bin`. Get them with
+
+```bash
+scripts/fetch_inknet.sh ml/runs/base2/model.inknet     # copy from a machine that has them (sha256 checked)
+INKNET_URL=https://... scripts/fetch_inknet.sh         # or download, once a location exists
+```
+
+or train your own (see [ml/README.md](ml/README.md)). Without weights the app runs on Zinnia alone and says so in the status bar. `--no-neural` or `HANDWRITING_NEURAL=off` turns the hybrid off, for comparison.
 
 ### Quick start
 

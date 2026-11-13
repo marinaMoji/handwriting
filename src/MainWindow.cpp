@@ -31,8 +31,9 @@
 #define HANDWRITING_DEFAULT_SAMPLES_DIR "samples"
 #endif
 
-MainWindow::MainWindow(ZinniaBackend* backend, QWidget* parent)
-    : QMainWindow(parent), backend_(backend) {
+MainWindow::MainWindow(ZinniaBackend* backend, const ink::InkNet* net, const QString& neuralNote,
+                       QWidget* parent)
+    : QMainWindow(parent), backend_(backend), net_(net), neuralNote_(neuralNote) {
   setWindowTitle(tr("marinaMoji handwriting prototype"));
   resize(820, 620);
 
@@ -116,10 +117,12 @@ MainWindow::MainWindow(ZinniaBackend* backend, QWidget* parent)
   canvas_->setFocus(Qt::OtherFocusReason);
 
   updateDiagnostics({});
+  const QString engine = net_ ? tr("hybrid (Zinnia + InkNet in Both mode)") : neuralNote_;
   statusBar()->showMessage(
-      tr("Click-drag or hold ` to write · JA: %1 · TW: %2")
+      tr("Click-drag or hold ` to write · JA: %1 · TW: %2 · %3")
           .arg(QFileInfo(backend_->japaneseModelPath()).fileName())
-          .arg(QFileInfo(backend_->traditionalModelPath()).fileName()));
+          .arg(QFileInfo(backend_->traditionalModelPath()).fileName())
+          .arg(engine));
   if (!canvas_->backendNote().isEmpty()) {
     statusBar()->showMessage(canvas_->backendNote(), 15000);
   }
@@ -301,7 +304,7 @@ void MainWindow::updateDiagnostics(const RecognitionResult& result) {
     }
   }
   diagnostics_->setText(
-      tr("Input: %1 · Backend: %2 · Mode: %3 · Strokes: %4 · Latency: %5 ms · Pad aspect: %6%7")
+      tr("Input: %1 · Backend: %2 · Mode: %3%8 · Strokes: %4 · Latency: %5 ms · Pad aspect: %6%7")
           .arg(writeState)
           .arg(canvas_->captureBackendName())
           .arg(modeName)
@@ -310,7 +313,8 @@ void MainWindow::updateDiagnostics(const RecognitionResult& result) {
           .arg(canvas_->padAspect(), 0, 'f', 2)
           .arg(result.error.isEmpty()
                    ? QString()
-                   : QStringLiteral(" · Error: %1").arg(result.error)));
+                   : QStringLiteral(" · Error: %1").arg(result.error))
+          .arg(lastEngine_.isEmpty() ? QString() : QStringLiteral(" (%1)").arg(lastEngine_)));
 }
 
 void MainWindow::onStrokesChanged() {
@@ -332,8 +336,12 @@ void MainWindow::runRecognition() {
   const int w = canvas_->logicalWidth();
   const int h = canvas_->logicalHeight();
   // Crop/fit/preprocess happen inside the shared Recognizer pipeline.
-  const Recognizer recognizer(backend_);
-  const Recognizer::Options options = recognizerOptions();
+  // Hybrid (Zinnia + InkNet) only exists for Both mode; other modes use Zinnia alone.
+  const bool hybrid = net_ != nullptr && mode == RecognitionMode::Both;
+  const Recognizer recognizer(backend_, net_);
+  Recognizer::Options options = recognizerOptions();
+  if (hybrid) options.neural = Recognizer::Options::Neural::Hybrid;
+  lastEngine_ = hybrid ? tr("hybrid") : tr("Zinnia");
 
   auto* watcher = new QFutureWatcher<RecognitionResult>(this);
   connect(watcher, &QFutureWatcher<RecognitionResult>::finished, this, [this, watcher, generation]() {

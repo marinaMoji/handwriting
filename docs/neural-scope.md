@@ -127,7 +127,7 @@ Built and verified; the Python prototype and the app now share one implementatio
 
 - **Renderer.** PIL's line drawing cannot be reproduced exactly in C++, so training moved to a point-splatting renderer with one spec ([ml/render.py](../ml/render.py), [src/InkNet.cpp](../src/InkNet.cpp)). Python and C++ renders are identical on the fixtures.
 - **Inference.** Hand-written, dependency-free C++ (`ink::InkNet`) reading flat weights from `python -m ml.export RUN FILE` (BatchNorm folded into the convolutions). `tests/ink_net_test.cpp` checks renders and logits against numpy/PyTorch fixtures made by `python -m ml.make_fixtures` (a tiny random-weight net, so CI needs no trained weights): max logit difference about 1e-7.
-- **Integration.** `Recognizer::Options::neural` = Off / Only / Hybrid (Both mode only); hybrid score = neural log-probability + `neuralWeight` (default 4) x Zinnia score. Off by default; the app does not load weights yet. `handwriting_eval --neural FILE [--neural-mode only|hybrid] [--neural-weight W]`.
+- **Integration.** `Recognizer::Options::neural` = Off / Only / Hybrid (Both mode only); hybrid score = neural log-probability + `neuralWeight` (default 4) x Zinnia score. Off by default in the library; the app turns it on in Both mode when it finds weights (README, "Hybrid recognition"). `handwriting_eval --neural FILE [--neural-mode only|hybrid] [--neural-weight W]`.
 - **Result with the C++ path (`base2`, retrained with the new renderer, 20,000 steps, 83 min), 214 dev samples, Both mode:**
 
 | | top-1 | top-5 | top-10 |
@@ -139,7 +139,7 @@ Built and verified; the Python prototype and the app now share one implementatio
   This reproduces the Python prototype (80.8 / 92.1 / 92.5).
 - **Cost (Release build, M1 Pro).** Neural only 69 ms per recognition; hybrid 168 ms (including Zinnia's several readings). Weights 24.6 MB at float32 (not committed; a fetch/packaging step is still to decide).
 - **Re-tuning with more data:** `python -m ml.train NAME` -> `python -m ml.export ml/runs/NAME out.inknet` -> pick `--neural-weight` on the new samples. No code changes.
-- **Not done:** looser augmentation is implemented (`--aug 2`) but not trained or evaluated; adaptive mixing weight; app integration and weight distribution; the held-out set (#18) is untouched.
+- **Not done:** looser augmentation is implemented (`--aug 2`) but not trained or evaluated; adaptive mixing weight; weight hosting (no public download yet); the held-out set (#18) is untouched.
 
 ### Adaptive mixing weight (tried, not adopted)
 Tested a weight that depends on the network's confidence (and, separately, on Zinnia's top-1 margin), tuned on one character half and reported on the other, using `base2` and the 214 dev samples. Best rule: weight 1 when the network's top probability exceeds 0.3, otherwise 4. Cross-validated top-1 moved by +1 to +3 points on the two halves and top-5/top-10 did not move at all, which is 2 to 6 samples out of 107 each, within noise for one writer. The fixed weight of 4 stays. Revisit with more data (#18, #20). Note on the Python/C++ gap: the hybrid scored 81.8 top-1 in Python and 80.4 in C++ because `handwriting_eval` defaults `--tol-penalty` to 0 while the Python dump used 0.1 (the app's value). With `--tol-penalty 0.1` C++ gives 81.3 / 92.1 / 93.0; the remaining one sample is probably integer coordinates after `fitToCanvas` and neural depth 50 vs 30. Quote C++ numbers with `--tol-penalty 0.1`.

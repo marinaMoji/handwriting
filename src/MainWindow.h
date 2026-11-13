@@ -1,5 +1,6 @@
 #pragma once
 
+#include "InkNet.h"
 #include "ZinniaBackend.h"
 
 #include <QMainWindow>
@@ -15,7 +16,10 @@ class MainWindow : public QMainWindow {
   Q_OBJECT
 
  public:
-  explicit MainWindow(ZinniaBackend* backend, QWidget* parent = nullptr);
+  // `net` (optional, must outlive the window) enables hybrid Zinnia + InkNet recognition in
+  // Both mode; `neuralNote` explains to the user why it is unavailable, if it is.
+  explicit MainWindow(ZinniaBackend* backend, const ink::InkNet* net = nullptr,
+                      const QString& neuralNote = QString(), QWidget* parent = nullptr);
 
  protected:
   bool eventFilter(QObject* watched, QEvent* event) override;
@@ -38,6 +42,9 @@ class MainWindow : public QMainWindow {
   bool shouldHandleHoldKeyFromFocus() const;
 
   ZinniaBackend* backend_ = nullptr;
+  const ink::InkNet* net_ = nullptr;
+  QString neuralNote_;
+  QString lastEngine_;
   DrawingCanvas* canvas_ = nullptr;
   CandidatePanel* candidates_ = nullptr;
   QComboBox* modeCombo_ = nullptr;
