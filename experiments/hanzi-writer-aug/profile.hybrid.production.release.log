@@ -1,0 +1,8 @@
+hybrid_profile samples=214 models=experiments/hanzi-writer-aug/models-production neural=data/inknet.bin weight=4
+prepare_ms                       0.02
+neural_render_infer_ms          59.41
+zinnia_ja_ms                     9.72
+zinnia_tw_ms                    18.69
+sum_parts_ms                    87.84
+hybrid_e2e_ms                  161.47
+overlap_estimate_ms            -73.62

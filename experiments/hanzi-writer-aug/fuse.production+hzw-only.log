@@ -1,0 +1,6 @@
+samples scored: 214 (intersection of dumps + truth)
+method          top1    top5   top10     mrr
+interleave     63.6   84.1   86.4  0.733
+rrf            62.6   82.2   86.4  0.701
+max            65.9   84.1   86.4  0.739
+z              68.7   84.6   86.9  0.759

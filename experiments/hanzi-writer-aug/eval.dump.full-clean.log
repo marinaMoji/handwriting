@@ -1,0 +1,6 @@
+samples: 214 real, 0 synthetic
+
+variant            mode            n    top1    top5   top10    mrr     ms
+resample:4+smooth:3@merge+split ja            214   71.0   84.1   89.3  0.772  55.08
+
+wrote experiments/hanzi-writer-aug/dump.full-clean.ja.json (214 samples)

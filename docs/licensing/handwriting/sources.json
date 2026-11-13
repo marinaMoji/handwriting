@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "description": "Pinned upstream sources and expected artifact hashes for the Hanzi Writer-enhanced Japanese Zinnia model. Read by scripts/build_hzw_model_package.py and tests/licensing_check_test.py. See PROVENANCE.md.",
+  "release_gate": "https://github.com/marinaMoji/handwriting/issues/21",
+  "modification_date": "2026-11-13",
+  "sources": {
+    "hanzi_writer_data": {
+      "role": "training data (stroke medians)",
+      "url": "https://github.com/chanind/hanzi-writer-data",
+      "commit": "68d10a4b21150cae5e1ebbd223eed289cf32d90c",
+      "commit_date": "2019-06-22",
+      "licence": "Arphic-1999",
+      "licence_file": "ARPHICPL.TXT",
+      "derived_from": [
+        "Make Me a Hanzi graphics.txt (https://github.com/skishore/makemeahanzi), Arphic-1999",
+        "Arphic PL KaitiM GB and Arphic PL UKai fonts (as stated by the Make Me a Hanzi README)"
+      ]
+    },
+    "tegaki_zinnia_japanese": {
+      "role": "training data (Tomoe stroke templates) and production model",
+      "url": "http://archive.ubuntu.com/ubuntu/pool/universe/t/tegaki-zinnia-japanese/tegaki-zinnia-japanese_0.3.orig.tar.gz",
+      "version": "0.3",
+      "licence": "LGPL-2.1",
+      "licence_file": "COPYING",
+      "tarball_sha256": "d177614a5229cffb0b231a48201be67f9e1968884c0ad18895686d803f79ea23",
+      "xml_sha256": "6f30a4f42f24dc611f1a3e4d7a220c5009bb0323f237f01f50e3be3dfefb11f8"
+    },
+    "zinnia": {
+      "role": "trainer (zinnia_learn) and recognition engine; not training data",
+      "url": "https://github.com/taku910/zinnia",
+      "location": "third_party/zinnia-src",
+      "licence": "BSD-3-Clause",
+      "local_patch": "svm.cpp: std::random_shuffle replaced by std::shuffle with std::mt19937 seeded 0"
+    }
+  },
+  "licence_texts": {
+    "ARPHICPL.TXT": {
+      "sha256": "5590533436c70f10f2f524ee61456238c290175c6662fbe1c700b5f038a6d328",
+      "origin": "hanzi-writer-data @ 68d10a4, /ARPHICPL.TXT (byte-exact copy)",
+      "equivalent_copies": {
+        "3a5e90c0957524a89e48203febcd4492ca4393678abaa7e5b4d70f3ff32b386d": "hanzi-writer-data APL/english/ARPHICPL.TXT; makemeahanzi APL/english/ARPHICPL.TXT; SPDX license-list-data text/Arphic-1999.txt (same text plus a final newline)",
+        "ba74a961aaa5fa7e73dc67276df2781ba405da2cb30c52c9d9eee9c200d4d11e": "ftp.gnu.org/non-gnu/chinese-fonts-truetype/LICENSE (same text, CRLF line endings)"
+      }
+    },
+    "LGPL-2.1.txt": {
+      "sha256": "a190dc9c8043755d90f8b0a75fa66b9e42d4af4c980bf5ddc633f0124db3cee7",
+      "origin": "tegaki-zinnia-japanese 0.3 tarball, /COPYING (byte-exact copy; identical to the COPYING of tegaki-zinnia-traditional-chinese 0.3)"
+    }
+  },
+  "production_models": {
+    "handwriting-ja.model": "d58618576d12c1ea38992606f30d19158a0a3beda3ac23bacccf1e48e651f2b2",
+    "handwriting-zh_TW.model": "cd47f16b64e7ecaa4c2813d0f98231dfea7b411f48be1ead5c9b2eeb19330b11"
+  },
+  "training": {
+    "configuration": "full-clean",
+    "converter": "scripts/hanzi_writer_to_zinnia.py",
+    "hzw_mode": "clean",
+    "max_chars": 0,
+    "selection": "every character present in both Tegaki Japanese 0.3 and Hanzi Writer data, in code point order",
+    "synthetic_variants": 0,
+    "trainer": "zinnia_learn (default parameters)",
+    "expected_lines": {"tegaki": 6646, "hanzi_writer": 5029, "combined": 11675}
+  },
+  "expected_sha256": {
+    "comment": "Corpus hashes are over the data lines only (notice header lines starting with ';' removed). The model hash was reproduced on macOS arm64 / AppleClang; other platforms are not verified and may differ in floating-point results.",
+    "tegaki_corpus_body": "1665f400790bca1901f19b038548d2dc124a02dad12f695265170eb3cb38d6a9",
+    "hzw_corpus_body": "7b02c6eb91163622435d573e7824ab9ee181d4aacbcf21135a854a444bf09525",
+    "combined_corpus_body": "f817409e6d8404494ea49dd7cc5715a400e29a284d90684dea21d3ab18749574",
+    "model": "6844964c3792670d8e59639be32b9796bd35380ba2fd59ba73694673dc0f0bb6"
+  }
+}

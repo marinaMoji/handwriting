@@ -1,0 +1,6 @@
+samples: 214 real, 0 synthetic
+
+variant            mode            n    top1    top5   top10    mrr     ms
+resample:4+smooth:3@merge+split ja            214   53.7   67.8   73.8  0.602  44.93
+resample:4+smooth:3@merge+split both          214   53.7   77.1   79.0  0.638 141.15
+

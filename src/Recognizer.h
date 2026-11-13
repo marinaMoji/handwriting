@@ -64,6 +64,10 @@ class Recognizer {
   static Prepared prepare(const QVector<Stroke>& raw, int surfaceWidth, int surfaceHeight,
                           const Options& options);
 
+  // What the neural net sees: specks dropped and fitted like Zinnia's input, but not smoothed or
+  // resampled. Returns ink::kChannels*kGrid*kGrid bytes (also used by the profiling tool).
+  static std::vector<uint8_t> neuralImage(const QVector<Stroke>& raw, const Options& options);
+
   RecognitionResult recognize(const QVector<Stroke>& raw, int surfaceWidth, int surfaceHeight,
                               RecognitionMode mode, const Options& options) const;
 

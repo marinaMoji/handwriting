@@ -8,6 +8,20 @@
 /models/*.meta
 /models_dl/
 
+# Experimental training artifacts (large; not for release). Upstream Hanzi Writer data is a
+# separate clone; trained models, training dumps and bulk logs stay local. Small result logs and
+# the licence file are kept (the Arphic licence must travel with anything derived from that data).
+/experiments/hanzi-writer-data/
+/experiments/**/*.model
+/experiments/**/models-*/
+/experiments/**/*.s
+/experiments/**/*.s.meta.json
+/experiments/**/*.model.txt
+/experiments/**/train.*.log
+# Staged (unreleased) Hanzi Writer-enhanced model package; see docs/licensing/handwriting/
+/experiments/hzw-package/
+/experiments/**/dump.*.json
+
 # Locally collected handwriting samples (your own data; see tests/ for fixtures)
 /samples/*.json
 /samples-test/*.json

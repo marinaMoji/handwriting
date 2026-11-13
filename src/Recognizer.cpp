@@ -149,12 +149,7 @@ RecognitionResult Recognizer::recognize(const QVector<Stroke>& raw, int surfaceW
   return backend_->recognize(p.strokes, mode, p.width, p.height, options.topN);
 }
 
-RecognitionResult Recognizer::recognizeNeural(const QVector<Stroke>& rawInput, int surfaceWidth,
-                                              int surfaceHeight, const Options& options) const {
-  QElapsedTimer timer;
-  timer.start();
-  // The net sees the ink as a picture: specks dropped and fitted like Zinnia's input, but not
-  // smoothed or resampled (that is what it was trained on).
+std::vector<uint8_t> Recognizer::neuralImage(const QVector<Stroke>& rawInput, const Options& options) {
   const QVector<Stroke> raw = options.dropSpecks ? stroke_preprocess::dropSpecks(rawInput) : rawInput;
   const QVector<Stroke> fitted =
       stroke_mapping::fitToCanvas(raw, options.canvas, options.canvas, options.margin, options.maxScale);
@@ -164,7 +159,14 @@ RecognitionResult Recognizer::recognizeNeural(const QVector<Stroke>& rawInput, i
     for (const StrokePoint& pt : s) d.emplace_back(pt.x, pt.y);
     strokes.push_back(std::move(d));
   }
-  const std::vector<uint8_t> image = ink::render(strokes);
+  return ink::render(strokes);
+}
+
+RecognitionResult Recognizer::recognizeNeural(const QVector<Stroke>& rawInput, int surfaceWidth,
+                                              int surfaceHeight, const Options& options) const {
+  QElapsedTimer timer;
+  timer.start();
+  const std::vector<uint8_t> image = neuralImage(rawInput, options);
   const auto top = net_->top(image.data(), qMax(options.neuralDepth, options.topN));
 
   RecognitionResult out;

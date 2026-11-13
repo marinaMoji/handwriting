@@ -33,6 +33,16 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
   target_compile_options(zinnia PRIVATE -Wno-deprecated-declarations)
 endif()
 
+# Offline training / conversion tools (experimental models only; not shipped).
+# EXCLUDE_FROM_ALL: build on demand (`cmake --build build --target zinnia_learn`); keeps CI on
+# all three OSes independent of them.
+add_executable(zinnia_learn EXCLUDE_FROM_ALL ${ZINNIA_DIR}/zinnia_learn.cpp)
+target_link_libraries(zinnia_learn PRIVATE zinnia)
+set_target_properties(zinnia_learn PROPERTIES AUTOMOC OFF AUTOUIC OFF AUTORCC OFF)
+add_executable(zinnia_convert EXCLUDE_FROM_ALL ${ZINNIA_DIR}/zinnia_convert.cpp)
+target_link_libraries(zinnia_convert PRIVATE zinnia)
+set_target_properties(zinnia_convert PROPERTIES AUTOMOC OFF AUTOUIC OFF AUTORCC OFF)
+
 # --- Shared recognition backend ----------------------------------------------
 add_library(handwriting_backend STATIC
   src/ZinniaBackend.cpp
@@ -160,6 +170,14 @@ target_compile_definitions(handwriting_eval PRIVATE
   HANDWRITING_DEFAULT_SAMPLES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/samples"
 )
 
+add_executable(hybrid_profile EXCLUDE_FROM_ALL src/profile_hybrid_main.cpp)
+target_include_directories(hybrid_profile PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_libraries(hybrid_profile PRIVATE handwriting_backend)
+target_compile_definitions(hybrid_profile PRIVATE
+  HANDWRITING_DEFAULT_MODEL_DIR="${CMAKE_CURRENT_SOURCE_DIR}/models"
+  HANDWRITING_DEFAULT_SAMPLES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/samples"
+)
+
 add_executable(mt_slot_tracker_test
   tests/mt_slot_tracker_test.cpp
   src/MtSlotTracker.cpp
@@ -222,3 +240,18 @@ add_executable(ink_net_test tests/ink_net_test.cpp)
 target_link_libraries(ink_net_test PRIVATE handwriting_backend)
 target_compile_definitions(ink_net_test PRIVATE INK_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/data")
 add_test(NAME ink_net_test COMMAND ink_net_test)
+
+# Python-side tool test: registered only when numpy is importable (the converter imports ml.tegaki).
+find_package(Python3 COMPONENTS Interpreter)
+if(Python3_Interpreter_FOUND)
+  execute_process(COMMAND ${Python3_EXECUTABLE} -c "import numpy"
+                  RESULT_VARIABLE HW_NUMPY_STATUS OUTPUT_QUIET ERROR_QUIET)
+  if(HW_NUMPY_STATUS EQUAL 0)
+    add_test(NAME hanzi_writer_convert_test
+             COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/hanzi_writer_convert_test.py)
+  endif()
+  # Licence texts, provenance pins, production/experimental separation and, when one has been
+  # built locally, the staged Hanzi Writer model package (standard library only).
+  add_test(NAME licensing_check_test
+           COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/licensing_check_test.py)
+endif()
